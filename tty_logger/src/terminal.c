@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/select.h>
 #include <sys/ioctl.h>
@@ -11,6 +12,14 @@
 #include <fcntl.h>
 
 #include "../include/util.h"
+
+
+/** src/io.c */
+extern ssize_t write_buffer(
+    int        fd,
+    const void *buffer,
+    size_t     count);
+
 
 // tty 読み込みバッファサイズ
 #define BUFFER_SIZE 128
@@ -92,7 +101,9 @@ int tty_setup(
  * @param path デバイスパス
  * @return 成功時 0
 */
-int tty_capture(const char *path) {
+int tty_capture(
+    const char *path,
+    const char *output_directory) {
   int status;
   struct termios old_termios;
 
@@ -107,12 +118,91 @@ int tty_capture(const char *path) {
 
 
   extern uint8_t f_stopped;
+  extern uint8_t f_verbose;
 
   fd_set readfds;
   struct timeval timeout = {
     .tv_sec  = 1,
     .tv_usec = 0
   };
+
+
+  // 出力先ファイル名の割当
+  const char *dev_name = NULL;
+  const char *p_cursor;
+  char *output_path = NULL;
+
+  for(p_cursor = path; p_cursor != NULL; p_cursor = strchr(p_cursor + 1, '/')) {
+    dev_name = p_cursor;
+  }
+
+  if(dev_name != NULL) {
+    ++dev_name;
+
+    // ファイル名の生成
+    const time_t now = time(NULL);
+    struct tm *ltime= localtime(&now);
+
+    const size_t filename_len = strlen(dev_name) + 25;
+    char *filename = (char *)calloc(
+        filename_len + 1,
+        sizeof(char));
+    if(filename == NULL) {
+      eprintf(stderr, "calloc(3)", NULL);
+      return EOF;
+    }
+
+    snprintf(filename, filename_len, "%04d_%02d_%02d_%02d_%02d_%02d_%s.txt",
+        (1900 + ltime->tm_year), (1 + ltime->tm_mon), ltime->tm_mday,
+        ltime->tm_hour, ltime->tm_min, ltime->tm_sec,
+        dev_name);
+
+
+    const size_t output_path_len = strlen(output_directory) + filename_len + 1;
+    output_path = (char *)calloc(
+        output_path_len + 1,
+        sizeof(char));
+
+    if(output_path == NULL) {
+      eprintf(stderr, "calloc(3)", NULL);
+
+      memset((void *)filename, '\0', sizeof(char) * filename_len);
+      free((void *)filename);
+      filename = NULL;
+
+      return EOF;
+    }
+
+    strncat(output_path, output_directory, output_path_len);
+    strncat(output_path, "/", output_path_len);
+    strncat(output_path, filename, output_path_len);
+
+    memset((void *)filename, '\0', sizeof(char) * filename_len);
+    free((void *)filename);
+    filename = NULL;
+  }
+
+  if(output_path == NULL) {
+    fprintf(stderr, "出力先ファイル名の取得に失敗.");
+    return EOF;
+  }
+
+  if(f_verbose) {
+    fprintf(stderr, "-- Output file path: %s\n", output_path);
+  }
+
+  int output_fd = open(output_path, O_CREAT | O_WRONLY | O_APPEND, 0644);
+
+  // ファイルディスクリプタ生成後, 割り当てた出力パスを解放
+  memset((void *)output_path, '\0', sizeof(char) * strlen(output_path));
+  free((void *)output_path);
+  output_path = NULL;
+
+  if(output_fd < 0) {
+    eprintf(stderr, "open(2)", output_path);
+
+    return EOF;
+  }
 
   FD_ZERO(&readfds);
   FD_SET(fd, &readfds);
@@ -140,16 +230,20 @@ int tty_capture(const char *path) {
         break;
       }
 
+      if(f_verbose) {
+        write(STDOUT_FILENO, (const void *)&received, 1);
+      }
+
       *(buffer + cntr++) = received;
       if(cntr == BUFFER_SIZE) {
-        // TODO: 書き込み対象をファイルにする
-        write(STDOUT_FILENO, (const void *)buffer, cntr - 1);
+        // 書き込み対象をファイルにする
+        write_buffer(output_fd, (const void *)buffer, cntr - 1);
         cntr = 0;
       }
     }
   }
   if(cntr > 0) {
-    write(STDOUT_FILENO, (const void *)buffer, cntr - 1);
+    write_buffer(output_fd, (const void *)buffer, cntr - 1);
   }
 
 
@@ -159,6 +253,7 @@ int tty_capture(const char *path) {
   }
 
   close(fd);
+  close(output_fd);
 
   return 0;
 }
