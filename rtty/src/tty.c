@@ -85,43 +85,8 @@ static const struct define_info_t _def_lflags[] = {
 };
 
 
-uint32_t _get_speed(speed_t speed) {
-  switch(speed) {
-    case B0: return 0;
-    case B50: return 50;
-    case B75: return 75;
-    case B110: return 110;
-    case B134: return 134;
-    case B150: return 150;
-    case B200: return 200;
-    case B300: return 300;
-    case B600: return 600;
-    case B1200: return 1200;
-    case B1800: return 1800;
-    case B2400: return 2400;
-    case B4800: return 4800;
-    case B9600: return 9600;
-    case B19200: return 19200;
-    case B38400: return 38400;
-    case B57600: return 57600;
-    case B115200: return 115200;
-    case B230400: return 230400;
-    case B460800: return 460800;
-    case B500000: return 500000;
-    case B576000: return 576000;
-    case B921600: return 921600;
-    case B1000000: return 1000000;
-    case B1152000: return 1152000;
-    case B1500000: return 1500000;
-    case B2000000: return 2000000;
-    case B2500000: return 2500000;
-    case B3000000: return 3000000;
-    case B3500000: return 3500000;
-    case B4000000: return 4000000;
-  }
-
-  return 0;
-}
+static uint32_t _get_speed(speed_t speed);
+static void _display_define_infos(const struct define_info_t *p_defines, uint32_t flags);
 
 
 /** 指定したパスの tty 設定取得
@@ -175,24 +140,14 @@ void tty_print_info(const struct termios *p_term) {
       _get_speed(cfgetispeed(p_term)),
       _get_speed(cfgetospeed(p_term)));
 
+
   fprintf(stdout, "  Input modes\n");
-  struct define_info_t *p_def = (struct define_info_t *)_def_iflags;
-  while(p_def->name != NULL) {
-    printf("    %-8s %s\n",
-        p_def->name,
-        FLAG_STATUS(p_def->value, p_term->c_cflag));
-    ++p_def;
-  }
+  _display_define_infos(_def_iflags, p_term->c_iflag);
   fprintf(stdout, "\n");
 
+
   fprintf(stdout, "  Output modes\n");
-  p_def = (struct define_info_t *)_def_oflags;
-  while(p_def->name != NULL) {
-    printf("    %-8s %s\n",
-        p_def->name,
-        FLAG_STATUS(p_def->value, p_term->c_cflag));
-    ++p_def;
-  }
+  _display_define_infos(_def_oflags, p_term->c_oflag);
   fprintf(stdout, "\n");
 
 
@@ -221,29 +176,65 @@ void tty_print_info(const struct termios *p_term) {
   }
 
 
-  p_def = (struct define_info_t *)_def_cflags;
-  while(p_def->name != NULL) {
-    printf("    %-8s %s\n",
-        p_def->name,
-        FLAG_STATUS(p_def->value, p_term->c_cflag));
-    ++p_def;
-  }
+  _display_define_infos(_def_cflags, p_term->c_cflag);
   fprintf(stdout, "\n");
 
 
   fprintf(stdout, "  Local modes\n");
-  p_def = (struct define_info_t *)_def_lflags;
-  while(p_def->name != NULL) {
-    printf("    %-8s %s\n",
-        p_def->name,
-        FLAG_STATUS(p_def->value, p_term->c_lflag));
-    ++p_def;
-  }
+  _display_define_infos(_def_lflags, p_term->c_lflag);
   fprintf(stdout, "\n");
 
-  fprintf(stdout, "\n");
   fprintf(stdout, "  c_cc[MIN]:   %d\n", p_term->c_cc[VMIN]);
   fprintf(stdout, "  c_cc[VTIME]: %d\n", p_term->c_cc[VTIME]);
   fprintf(stdout, "  c_cc[VEOF]:  %c(0x%02x)\n", p_term->c_cc[VEOF], p_term->c_cc[VEOF]);
   fprintf(stdout, "  c_cc[VQUIT]: %c(0x%02x)\n", p_term->c_cc[VQUIT], p_term->c_cc[VQUIT]);
+}
+
+
+static uint32_t _get_speed(speed_t speed) {
+  switch(speed) {
+    case B0: return 0;
+    case B50: return 50;
+    case B75: return 75;
+    case B110: return 110;
+    case B134: return 134;
+    case B150: return 150;
+    case B200: return 200;
+    case B300: return 300;
+    case B600: return 600;
+    case B1200: return 1200;
+    case B1800: return 1800;
+    case B2400: return 2400;
+    case B4800: return 4800;
+    case B9600: return 9600;
+    case B19200: return 19200;
+    case B38400: return 38400;
+    case B57600: return 57600;
+    case B115200: return 115200;
+    case B230400: return 230400;
+    case B460800: return 460800;
+    case B500000: return 500000;
+    case B576000: return 576000;
+    case B921600: return 921600;
+    case B1000000: return 1000000;
+    case B1152000: return 1152000;
+    case B1500000: return 1500000;
+    case B2000000: return 2000000;
+    case B2500000: return 2500000;
+    case B3000000: return 3000000;
+    case B3500000: return 3500000;
+    case B4000000: return 4000000;
+  }
+
+  return 0;
+}
+
+
+static void _display_define_infos(const struct define_info_t *p_defines, uint32_t flags) {
+  while(p_defines->name != NULL) {
+    fprintf(stdout, "    %-8s %s\n",
+        p_defines->name,
+        FLAG_STATUS(p_defines->value, flags));
+    ++p_defines;
+  }
 }
