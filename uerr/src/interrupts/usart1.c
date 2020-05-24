@@ -34,13 +34,24 @@ void USART1_handler(void) {
     const uint8_t recv = (uint8_t)(USART1->RDR & 0xff);
 
 #ifdef ENABLE_RANDOM
-    const uint8_t f_enable_random = ! (GPIO_B->IDR & 1);
+    const uint8_t f_enable_random = ! ((GPIO_B->IDR >> 0) & 1);
 
+#ifdef ENABLE_REJECT_NL
+    // 改行を無視してランダム値を送信
+    if(f_enable_random) {
+      usart_putchar(USART1, (uint8_t)(rand() % 0xff));
+    } else {
+      usart_putchar(USART1, recv);
+    }
+#else
+    // 改行を考慮に入れた場合.
     if(f_enable_random && recv != '\n') {
       usart_putchar(USART1, (uint8_t)(rand() % 0xff));
     } else {
       usart_putchar(USART1, recv);
     }
+#endif
+
 #else
     usart_putchar(USART1, recv);
 #endif

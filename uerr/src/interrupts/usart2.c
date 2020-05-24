@@ -30,13 +30,22 @@ void USART2_handler(void) {
 
 #ifdef ENABLE_RANDOM
     // ボタン押下時に接地をさせているため, 結果を反転させる
-    const uint8_t f_enable_random = ! (GPIO_B->IDR & 1);
+    const uint8_t f_enable_random = ! ((GPIO_B->IDR >> 7) & 1);
 
+#ifdef ENABLE_REJECT_NL
+    if(f_enable_random) {
+      usart_putchar(USART2, (uint8_t)(rand() % 0xff));
+    } else {
+      usart_putchar(USART2, recv);
+    }
+#else
     if(f_enable_random && recv != '\n') {
       usart_putchar(USART2, (uint8_t)(rand() % 0xff));
     } else {
       usart_putchar(USART2, recv);
     }
+#endif
+
 #else
     usart_putchar(USART2, recv);
 #endif

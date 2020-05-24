@@ -47,6 +47,7 @@ $(OBJDIR)/%.o:%.c
 		-mthumb \
 		-g -Wunused-variable \
 		-D ENABLE_RANDOM
+	# -D ENABLE_REJECT_NL
 
 $(OBJDIR)/%.o:%.s
 	$(AS) -o $@ $< \
