@@ -121,11 +121,6 @@ int tty_capture(
   extern uint8_t f_verbose;
 
   fd_set readfds;
-  struct timeval timeout = {
-    .tv_sec  = 1,
-    .tv_usec = 0
-  };
-
 
   // 出力先ファイル名の割当
   const char *dev_name = NULL;
@@ -209,8 +204,13 @@ int tty_capture(
 
 
   while(! f_stopped) {
-    fd_set _readfds;
     uint8_t received;
+    struct timeval timeout = {
+      .tv_sec  = 15,
+      .tv_usec = 0
+    };
+
+    fd_set _readfds;
     memcpy((void *)&_readfds, (const void *)&readfds, sizeof(fd_set));
 
     status = select(fd + 1, &_readfds, NULL, NULL, &timeout);
