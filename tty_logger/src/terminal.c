@@ -208,10 +208,6 @@ int tty_capture(
   FD_SET(fd, &readfds);
 
 
-  uint32_t cntr = 0;
-  uint8_t buffer[BUFFER_SIZE];
-  memset((void *)buffer, '\0', sizeof(buffer));
-
   while(! f_stopped) {
     fd_set _readfds;
     uint8_t received;
@@ -233,17 +229,8 @@ int tty_capture(
       if(f_verbose) {
         write(STDOUT_FILENO, (const void *)&received, 1);
       }
-
-      *(buffer + cntr++) = received;
-      if(cntr == BUFFER_SIZE) {
-        // 書き込み対象をファイルにする
-        write_buffer(output_fd, (const void *)buffer, cntr - 1);
-        cntr = 0;
-      }
+      write(output_fd, (const void *)&received, 1);
     }
-  }
-  if(cntr > 0) {
-    write_buffer(output_fd, (const void *)buffer, cntr - 1);
   }
 
 
