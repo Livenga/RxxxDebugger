@@ -60,6 +60,11 @@ static void init(void) {
   // 確認
   GPIO_SET_MODE(GPIO_B, 6, GPIO_MODER_OUTPUT);
 
+  // ボタン入力 - 1 プルアップ
+  GPIO_SET_PUPD(GPIO_B, 0, GPIO_PUPDR_PULL_UP);
+  // ボタン入力 - 2 プルアップ
+  GPIO_SET_PUPD(GPIO_B, 7, GPIO_PUPDR_PULL_UP);
+
 
   // PA9 - USART1 Tx
   GPIO_SET_MODE(GPIO_A, 9, GPIO_MODER_ALTERNATE_FUNCTION);
