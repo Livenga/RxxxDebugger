@@ -18,7 +18,8 @@
 #include "../include/util.h"
 
 
-#define BUFFER_LIMIT 8192
+//#define BUFFER_LIMIT 8192
+#define BUFFER_LIMIT 65536
 
 
 /** スレッドを持続可能かどうかを確認
@@ -117,7 +118,12 @@ void *thread_seekfd(void *p_arg) {
                     /* size = */ret);
 
                 if(f_verbose) {
-                  snprintf(verbose_message, 128, "<- read(fd: %ld)\n", r0);
+                  snprintf(verbose_message, 128, "<- %ld = read(%ld, 0x%08X, %ld)\n",
+                      ret,
+                      r0,
+                      *(regs.uregs + 1),
+                      *(regs.uregs + 2));
+
                   write(STDOUT_FILENO, (const void *)verbose_message, sizeof(char) * strlen(verbose_message));
                   write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * ret);
                   write(STDOUT_FILENO, (const void *)"\n", sizeof(char) * 1);
@@ -238,6 +244,8 @@ static size_t peek_data(
     uint32_t addr,
     uint8_t  *buf,
     uint32_t size) {
+  extern uint8_t f_verbose;
+
   int i;
 
   for(i = 0; i < size; i += sizeof(long)) {
@@ -250,7 +258,9 @@ static size_t peek_data(
     if(data != -1) {
       memcpy((void *)(buf + i), (const void *)&data, sizeof(long));
     } else {
-      eprintf(stderr, "ptrace(2)", "PTRACE_PEEKDATA");
+      if(f_verbose) {
+        eprintf(stderr, "ptrace(2)", "PTRACE_PEEKDATA");
+      }
       return -1;
     }
   }

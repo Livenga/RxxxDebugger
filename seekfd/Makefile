@@ -20,13 +20,11 @@ default:
 
 $(PRJC):$(OBJS)
 	$(CC) -o $@ $^ \
-		-Wall \
 		-pthread
 
 
 $(OBJDIR)/%.o:%.c
-	$(CC) -o $@ -c $< \
-		-Wall -g \
+	$(CC) -o $@ -c $< -g \
 		-D__REQUIRED_ROOT__
 
 
