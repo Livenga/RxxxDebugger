@@ -18,6 +18,9 @@
 #include "../include/util.h"
 
 
+#define BUFFER_LIMIT 8192
+
+
 /** スレッドを持続可能かどうかを確認
  * @param mutex Muex
  * @return 1 or 0
@@ -81,25 +84,29 @@ void *thread_seekfd(void *p_arg) {
     } else if(WIFSTOPPED(wstatus)) {
       ptrace(PTRACE_GETREGS, arg->pid, NULL, &regs);
 
-      size_t seek_bsize;
+#if defined(__ARM_EABI__)
+      unsigned long int r0  = 0;
+      unsigned long int ret = 0;
+
       uint8_t *seek_buffer = NULL;
 
-      long arg1;
-
-#if defined(__ARM_EABI__)
-      arg1 = *(regs.uregs + 4);
+      if(*(regs.uregs + 12) == 1) {
+        r0 = *(regs.uregs + 17);
+        ret = *(regs.uregs + 0);
+      } else {
+        r0 = *(regs.uregs + 0);
+        ret = 0;
+      }
 
       switch(*(regs.uregs + 7)) {
         case SYS_read:
-          if(arg->target_fd == -1 || arg1 == arg->target_fd) {
-            if(*(regs.uregs + 12) == 1) {
-              //size_t seek_bsize = *(regs.uregs + 2) + 1;
-              seek_bsize = *(regs.uregs + 0);
-
+          if(arg->target_fd == -1 || r0 == arg->target_fd) {
+            if(ret < BUFFER_LIMIT) {
               // 呼び出し
               seek_buffer = (uint8_t *)calloc(
-                  /* nmemb = */seek_bsize + sizeof(long),
+                  /* nmemb = */ret + sizeof(long),
                   /* size  = */sizeof(uint8_t));
+
               if(seek_buffer != NULL) {
                 unsigned long start_addr = *(regs.uregs + 1);
 
@@ -107,35 +114,41 @@ void *thread_seekfd(void *p_arg) {
                     /* pid  = */arg->pid,
                     /* addr = */start_addr,
                     /* buf  = */seek_buffer,
-                    /* size = */seek_bsize);
+                    /* size = */ret);
 
                 if(f_verbose) {
-                  snprintf(verbose_message, 128, "<- read(fd: %ld)\n", arg1);
+                  snprintf(verbose_message, 128, "<- read(fd: %ld)\n", r0);
                   write(STDOUT_FILENO, (const void *)verbose_message, sizeof(char) * strlen(verbose_message));
-                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * seek_bsize);
+                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * ret);
                   write(STDOUT_FILENO, (const void *)"\n", sizeof(char) * 1);
                 } else {
-                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * seek_bsize);
+                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * ret);
                 }
 
                 // 解放
-                memset((void *)seek_buffer, '\0', sizeof(char) * seek_bsize);
+                memset((void *)seek_buffer, '\0', sizeof(char) * ret);
                 free((void *)seek_buffer);
                 seek_buffer = NULL;
               } else {
                 eprintf(stderr, "calloc(3)", NULL);
               }
             } else {
+              fprintf(stderr, "%lu = %lu(%lu, 0x%08lX, %lu)\n",
+                  ret,               // 返り値
+                  *(regs.uregs + 7), // システムコール番号
+                  r0,                // 第一引数
+                  *(regs.uregs + 1), // 第二引数 
+                  *(regs.uregs + 2)  // 第三引数
+                  );
             }
           }
           break;
 
         case SYS_write:
-          if(arg->target_fd == -1 || arg1 == arg->target_fd) {
-            if(*(regs.uregs + 12) == 1) {
-              seek_bsize  = *(regs.uregs + 0);
+          if(arg->target_fd == -1 || r0 == arg->target_fd) {
+            if(ret < BUFFER_LIMIT) {
               seek_buffer = (uint8_t *)calloc(
-                  /* nmemb = */seek_bsize + sizeof(long),
+                  /* nmemb = */ret + sizeof(long),
                   /* size  = */sizeof(uint8_t));
               if(seek_buffer != NULL) {
                 unsigned long start_addr = *(regs.uregs + 1);
@@ -144,42 +157,37 @@ void *thread_seekfd(void *p_arg) {
                     /* pid  = */arg->pid,
                     /* addr = */start_addr,
                     /* buf  = */seek_buffer,
-                    /* size = */seek_bsize);
+                    /* size = */ret);
 
                 if(f_verbose) {
-                  snprintf(verbose_message, 128, "-> write(fd: %ld)\n", arg1);
+                  snprintf(verbose_message, 128, "-> write(fd: %ld)\n", r0);
                   write(STDOUT_FILENO, (const void *)verbose_message, sizeof(char) * strlen(verbose_message));
-                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * seek_bsize);
+                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * ret);
                   write(STDOUT_FILENO, (const void *)"\n", sizeof(char) * 1);
                 } else {
-                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * seek_bsize);
+                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * ret);
                 }
 
                 // 解放
-                memset((void *)seek_buffer, '\0', sizeof(char) * seek_bsize);
+                memset((void *)seek_buffer, '\0', sizeof(char) * ret);
                 free((void *)seek_buffer);
                 seek_buffer = NULL;
               } else {
                 eprintf(stderr, "calloc(3)", NULL);
               }
+            } else {
+              fprintf(stderr, "%lu = %lu(0x%04lx, 0x%08lX, %lu)\n",
+                  ret,               // 返り値
+                  *(regs.uregs + 7), // システムコール番号
+                  r0,                // 第一引数
+                  *(regs.uregs + 4), // 第一引数
+                  *(regs.uregs + 1), // 第二引数 
+                  *(regs.uregs + 2)  // 第三引数
+                  );
             }
           }
           break;
       }
-#if 0
-      for(i = 0; i < 18; ++i) {
-        fprintf(stderr, "uregs[%2d]: 0x%08X %lu\n",
-            i,
-            (unsigned)*(regs.uregs + i),
-            *(regs.uregs + i));
-      }
-#endif
-#else
-      fprintf(stderr, "- %llu %llu %llu %llu\n",
-          regs.orig_rax,
-          regs.rdi,
-          regs.rsi,
-          regs.rdx);
 #endif
       //fprintf(stderr, "- stopped by signal %d\n", WSTOPSIG(wstatus));
     }
