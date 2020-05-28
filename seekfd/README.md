@@ -5,8 +5,9 @@
 
 
 ### NOTEs
-~~`ptrace(PTRACE_GETREGS)` で取得される汎用レジスタの第一引数に該当するレジスタに `/proc/[pid]/fd` に含まれていないような格納されている場合がある.  ~~  
-  
+~~`ptrace(PTRACE_GETREGS)` で取得される汎用レジスタの第一引数に該当するレジスタに `/proc/[pid]/fd` に含まれていないような格納されている場合がある.~~
+
+
 汎用レジスタ `r12(ip)` の状態により, 第一引数を格納するレジスタが変わる(下記ページ参照).  
 [アーキテクチャ固有のレジスタ](http://www.katsuster.net/wiki/index.php?katsuhiro%2Frefmon%2Farm_port)  
 [Assembly Programming on ARM Linux(02)](https://www.mztn.org/slasm/arm02.html)
