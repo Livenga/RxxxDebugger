@@ -46,6 +46,7 @@ static size_t peek_data(
  */
 void *thread_seekfd(void *p_arg) {
   extern uint8_t f_verbose;
+  extern uint8_t f_output;
 
   struct thread_seekfd_arg_t *arg = (struct thread_seekfd_arg_t *)p_arg;
   int status;
@@ -63,6 +64,11 @@ void *thread_seekfd(void *p_arg) {
 #if defined(__ARM_EABI__)
   struct user_regs regs;
   memset((void *)&regs, 0, sizeof(struct user_regs));
+
+  if(f_output) {
+    uint32_t register_size = sizeof(regs.uregs) / sizeof(regs.uregs[0]);
+    write(p_arg->output_fd, (const void *)&register_size, sizeof(uint32_t));
+  }
 #else
   struct user_regs_struct regs;
   memset((void *)&regs, 0, sizeof(struct user_regs_struct));

@@ -6,6 +6,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <time.h>
 #include <pthread.h>
 #include <limits.h>
 #include <regex.h>
@@ -16,6 +17,9 @@
 
 #include "../include/seekfd_type.h"
 #include "../include/util.h"
+
+
+#define SEEKFD_VERSION (1)
 
 
 #define GET_OPTARG(argv, optarg, optind) \
@@ -38,6 +42,15 @@ static int32_t find_file_descriptor(
     const pid_t pid,
     const char *target_path);
 
+/** 日時をファイル名としたパスの作成
+ * @param path 格納先ポインタ. strncat を用いるため, 格納されている文字列の次にパスを追加する
+ * @param size 格納先ポインタのサイズ
+ * @return path
+ */
+static char *generate_output_path(
+    char *path,
+    size_t size);
+
 /** ヘルプ表示
  * @param app 実行ファイル名(argv[0])
  */
@@ -45,8 +58,9 @@ static void print_help(const char *app);
 
 extern void *thread_seekfd(void *p_arg);
 
-uint8_t f_verbose = 0;
+uint8_t f_verbose     = 0;
 uint8_t f_thread_exit = 0;
+uint8_t f_output      = 0;
 
 
 /**
@@ -55,11 +69,13 @@ int main(
     int argc,
     char *argv[]) {
   const struct option opts[] = {
-    {"pid",             required_argument, 0, 'p'},
-    {"process-name",    required_argument, 0, 'n'},
-    {"file-descriptor", required_argument, 0, 'f'},
-    {"verbose",         no_argument,       0, 'v'},
-    {"help",            no_argument,       0, 'h'},
+    {"pid",              required_argument, 0, 'p'},
+    {"process-name",     required_argument, 0, 'n'},
+    {"file-descriptor",  required_argument, 0, 'f'},
+    {"output-path",      optional_argument, 0, 'o'},
+    {"output-directory", required_argument, 0, 'd'},
+    {"verbose",          no_argument,       0, 'v'},
+    {"help",             no_argument,       0, 'h'},
     {0, 0, 0, 0},
   };
 
@@ -68,18 +84,14 @@ int main(
   int32_t target_fd  = -1;
 
   char fd_path[1024];
-  memset((void *)fd_path, '\0', sizeof(fd_path));
+  char output_path[1024];
 
-#if defined(__REQUIRED_ROOT__) && __REQUIRED_ROOT__ == 1
-  if(getuid() != 0) {
-    fprintf(stderr, "- \033[1;31mroot\033[0m 権限が必要です.\n");
-    return 127;
-  }
-#endif
+  memset((void *)fd_path, '\0', sizeof(fd_path));
+  memset((void *)output_path, '\0', sizeof(output_path));
 
   int opt;
   char *_optarg, *endptr = NULL;
-  while((opt = getopt_long(argc, argv, "p:n:f:vh", opts, NULL)) > 0) {
+  while((opt = getopt_long(argc, argv, "p:n:f:od:vh", opts, NULL)) > 0) {
     switch(opt) {
       case 'p':
         if(target_pid == 0) {
@@ -104,6 +116,35 @@ int main(
         break;
 
 
+      case 'o':
+        if(! f_output) {
+          _optarg = GET_OPTARG(argv, optarg, optind);
+          if(_optarg != NULL && *(_optarg + 0) != '-') {
+            strncpy(output_path, _optarg, 1024);
+          } else {
+            char *p_ret = generate_output_path(output_path, 1024);
+            if(p_ret == NULL) {
+              return 133;
+            }
+            strncpy((char *)output_path, (const char *)(output_path + 1), 1023);
+          }
+
+          f_output = 1;
+        }
+        break;
+
+      case 'd':
+        if(! f_output) {
+          _optarg = GET_OPTARG(argv, optarg, optind);
+          strncpy(output_path, _optarg, 1024);
+          if(generate_output_path(output_path, 1024) == NULL) {
+            return 131;
+          }
+
+          f_output = 1;
+        }
+        break;
+
       case 'v':
         f_verbose = 1;
         break;
@@ -112,6 +153,14 @@ int main(
         return 0;
     }
   }
+
+#if defined(__REQUIRED_ROOT__) && __REQUIRED_ROOT__ == 1
+  if(getuid() != 0) {
+    fprintf(stderr, "- \033[1;31mroot\033[0m 権限が必要です.\n");
+    return 127;
+  }
+#endif
+
 
   if(target_pid == 0) {
     fprintf(stderr, "- 検索対象のプロセス ID か未指定か探索に失敗しました.\n");
@@ -138,7 +187,32 @@ int main(
     } else {
       fprintf(stderr, "read/wrtie が呼び出された場合, すべてがデータを監視対象.\n");
     }
+
+    if(f_output) {
+      fprintf(stderr, "出力ファイルパス: %s\n", output_path);
+    }
   }
+
+  // 出力するファイルディスクリプタの作成
+  int output_fd = -1;
+  if(f_output) {
+    output_fd = open(output_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+
+    if(output_fd < 0) {
+      eprintf(stderr, "open(2)", output_path);
+      return 132;
+    }
+
+    uint8_t chr = 's';
+    uint16_t version = SEEKFD_VERSION;
+
+    write(output_fd, (const void *)&chr, 1);
+    chr = 0xfd;
+    write(output_fd, (const void *)&chr, 1);
+    write(output_fd, (const void *)&version, sizeof(uint16_t));
+  }
+
+  return 0;
 
 
   int status;
@@ -163,6 +237,7 @@ int main(
   thr_args.pid       = target_pid;
   thr_args.mutex     = &mtx_seek;
   thr_args.target_fd = target_fd;
+  thr_args.output_fd = output_fd;
 
 
   status = pthread_create(
@@ -188,6 +263,9 @@ int main(
     return 130;
   }
 
+  if(thr_args.output_fd > 0) {
+    close(thr_args.target_fd);
+  }
   pthread_mutex_destroy(&mtx_seek);
 
   return 0;
@@ -300,6 +378,39 @@ static int32_t find_file_descriptor(
   return target_fd;
 }
 
+
+//
+static char *generate_output_path(char *path, size_t size) {
+  const time_t now = time(NULL);
+  struct tm *p_tm = localtime(&now);
+  if(p_tm == NULL) {
+    return NULL;
+  }
+
+  int i;
+  for(i = strlen(path) - 1; i >= 0 && *(path + i) == '/'; --i) {
+    *(path + i) = '\0';
+  }
+
+  char filename[32];
+  memset((void *)filename, '\0', sizeof(filename));
+  snprintf(filename, 32,
+      "%04d_%02d_%02d_%02d_%02d_%02d.sfdump",
+      (1900 + p_tm->tm_year), (1 + p_tm->tm_mon), p_tm->tm_mday,
+      p_tm->tm_hour, p_tm->tm_min, p_tm->tm_sec);
+
+  if((strlen(path) + strlen(filename) + 1) > size) {
+    fprintf(stderr, "%ld: ファイル名の長さが超過しています.\n", size);
+    return NULL;
+  }
+
+  strncat(path, "/", size);
+  strncat(path, filename, size);
+
+  return path;
+}
+
+
 //
 static void print_help(const char *app) {
   fprintf(stdout, "Usage: %s [OPTION]\n\n", app);
@@ -307,4 +418,9 @@ static void print_help(const char *app) {
   fprintf(stdout, "  -p, --pid:             process ID\n");
   fprintf(stdout, "  -n, --process-name:    process name\n");
   fprintf(stdout, "  -f, --file-descriptor: File descriptor\n");
+  fprintf(stdout, "\n");
+  fprintf(stdout, "  -o, --output-path:      出力先パス\n");
+  fprintf(stdout, "  -d, --output-directory: 出力先ディレクトリ\n");
+  fprintf(stdout, "                          出力パスは先に指定されたオプションが優先される.\n");
+  fprintf(stdout, "\n");
 }

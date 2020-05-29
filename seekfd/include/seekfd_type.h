@@ -11,6 +11,7 @@ struct thread_seekfd_arg_t {
   pthread_mutex_t *mutex;
 
   int32_t target_fd;
+  int output_fd;
 };
 
 #endif
