@@ -398,7 +398,11 @@ static char *generate_output_path(char *path, size_t size) {
       p_tm->tm_hour, p_tm->tm_min, p_tm->tm_sec);
 
   if((strlen(path) + strlen(filename) + 1) > size) {
+#if defined(__ARM_EABI__)
     fprintf(stderr, "%d: ファイル名の長さが超過しています.\n", size);
+#else
+    fprintf(stderr, "%ld: ファイル名の長さが超過しています.\n", size);
+#endif
     return NULL;
   }
 

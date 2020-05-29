@@ -118,16 +118,17 @@ void *thread_seekfd(void *p_arg) {
       if(f_output) {
         // Note: 書き込み順序について下記の順序に従う.
         // v1 @ [sys, ip, ret, r0, r1, r2]
-        write(arg->output_fd, (const void *)&sys, sizeof(sys));
-        write(arg->output_fd, (const void *)&ip,  sizeof(ip));
-        write(arg->output_fd, (const void *)&r0,  sizeof(r0));
-        write(arg->output_fd, (const void *)&r1,  sizeof(r1));
-        write(arg->output_fd, (const void *)&r2,  sizeof(r2));
+        write(arg->output_fd, (const void *)&sys,  sizeof(sys));
+        write(arg->output_fd, (const void *)&ip,   sizeof(ip));
+        write(arg->output_fd, (const void *)&ret,  sizeof(ret));
+        write(arg->output_fd, (const void *)&r0,   sizeof(r0));
+        write(arg->output_fd, (const void *)&r1,   sizeof(r1));
+        write(arg->output_fd, (const void *)&r2,   sizeof(r2));
 
         // TODO: 書き込み及び受信するデータや第三引数以降のデータを記録
       }
 
-#if 0
+#if defined(__ENABLE_DISPLAY_ALL__)
       // Note: ヘルスチェックに失敗する可能性があり, 再起動を検出
       snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu)\n",
           ret, sys, r0, r1, r2);
