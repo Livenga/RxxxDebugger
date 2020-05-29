@@ -66,7 +66,7 @@ void *thread_seekfd(void *p_arg) {
   memset((void *)&regs, 0, sizeof(struct user_regs));
 
   if(f_output) {
-    uint32_t register_size = sizeof(regs.uregs) / sizeof(regs.uregs[0]);
+    uint32_t register_size = sizeof(regs.uregs[0]);
     write(arg->output_fd, (const void *)&register_size, sizeof(uint32_t));
   }
 #else
