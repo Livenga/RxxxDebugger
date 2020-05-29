@@ -212,8 +212,6 @@ int main(
     write(output_fd, (const void *)&version, sizeof(uint16_t));
   }
 
-  return 0;
-
 
   int status;
 
@@ -400,7 +398,7 @@ static char *generate_output_path(char *path, size_t size) {
       p_tm->tm_hour, p_tm->tm_min, p_tm->tm_sec);
 
   if((strlen(path) + strlen(filename) + 1) > size) {
-    fprintf(stderr, "%ld: ファイル名の長さが超過しています.\n", size);
+    fprintf(stderr, "%d: ファイル名の長さが超過しています.\n", size);
     return NULL;
   }
 

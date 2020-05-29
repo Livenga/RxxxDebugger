@@ -67,7 +67,7 @@ void *thread_seekfd(void *p_arg) {
 
   if(f_output) {
     uint32_t register_size = sizeof(regs.uregs) / sizeof(regs.uregs[0]);
-    write(p_arg->output_fd, (const void *)&register_size, sizeof(uint32_t));
+    write(arg->output_fd, (const void *)&register_size, sizeof(uint32_t));
   }
 #else
   struct user_regs_struct regs;
@@ -75,8 +75,8 @@ void *thread_seekfd(void *p_arg) {
 #endif
 
 
-  char verbose_message[128];
-  memset((void *)verbose_message, '\0', sizeof(verbose_message));
+  char msg[128];
+  memset((void *)msg, '\0', sizeof(msg));
 
   for(;;) {
     //fprintf(stderr, "--- Running...\n");
@@ -99,7 +99,7 @@ void *thread_seekfd(void *p_arg) {
       unsigned long int sys = 0,
                     ip = 0;
 
-      uint8_t *seek_buffer = NULL;
+      //uint8_t *seek_buffer = NULL;
 
       sys = *(regs.uregs + 7);
       ip  = *(regs.uregs + 12);
@@ -115,88 +115,24 @@ void *thread_seekfd(void *p_arg) {
       //r3 = *(regs.uregs + 3);
       //r4 = *(regs.uregs + 4);
 
-      switch(*(regs.uregs + 7)) {
+      if(f_output) {
+        // Note: 書き込み順序について下記の順序に従う.
+        // v1 @ [sys, ip, ret, r0, r1, r2]
+        write(arg->output_fd, (const void *)&sys, sizeof(sys));
+        write(arg->output_fd, (const void *)&ip,  sizeof(ip));
+        write(arg->output_fd, (const void *)&r0,  sizeof(r0));
+        write(arg->output_fd, (const void *)&r1,  sizeof(r1));
+        write(arg->output_fd, (const void *)&r2,  sizeof(r2));
+
+        // TODO: 書き込み及び受信するデータや第三引数以降のデータを記録
+      }
+
+      switch(sys) {
         case SYS_read:
-          if(arg->target_fd == -1 || r0 == arg->target_fd) {
-            if(ret < BUFFER_LIMIT) {
-              // 呼び出し
-              seek_buffer = (uint8_t *)calloc(
-                  /* nmemb = */ret + sizeof(long),
-                  /* size  = */sizeof(uint8_t));
-
-              if(seek_buffer != NULL) {
-                unsigned long start_addr = *(regs.uregs + 1);
-
-                peek_data(
-                    /* pid  = */arg->pid,
-                    /* addr = */start_addr,
-                    /* buf  = */seek_buffer,
-                    /* size = */ret);
-
-                if(f_verbose) {
-                  snprintf(verbose_message, 128, "<- %ld = read(%ld, 0x%08X, %ld)\n",
-                      ret,
-                      r0, r1, r2);
-
-                  write(STDOUT_FILENO, (const void *)verbose_message, sizeof(char) * strlen(verbose_message));
-                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * ret);
-                  write(STDOUT_FILENO, (const void *)"\n", sizeof(char) * 1);
-                } else {
-                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * ret);
-                }
-
-                // 解放
-                memset((void *)seek_buffer, '\0', sizeof(char) * ret);
-                free((void *)seek_buffer);
-                seek_buffer = NULL;
-              } else {
-                eprintf(stderr, "calloc(3)", NULL);
-              }
-            } else {
-              fprintf(stderr, "%lu = %lu(%lu, 0x%08lX, %lu)\n",
-                  ret, sys,
-                  r0, r1, r2);
-            }
-          }
-          break;
-
         case SYS_write:
-          if(arg->target_fd == -1 || r0 == arg->target_fd) {
-            if(ret < BUFFER_LIMIT) {
-              seek_buffer = (uint8_t *)calloc(
-                  /* nmemb = */ret + sizeof(long),
-                  /* size  = */sizeof(uint8_t));
-              if(seek_buffer != NULL) {
-                unsigned long start_addr = *(regs.uregs + 1);
-
-                peek_data(
-                    /* pid  = */arg->pid,
-                    /* addr = */start_addr,
-                    /* buf  = */seek_buffer,
-                    /* size = */ret);
-
-                if(f_verbose) {
-                  snprintf(verbose_message, 128, "-> write(fd: %ld)\n", r0);
-                  write(STDOUT_FILENO, (const void *)verbose_message, sizeof(char) * strlen(verbose_message));
-                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * ret);
-                  write(STDOUT_FILENO, (const void *)"\n", sizeof(char) * 1);
-                } else {
-                  write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * ret);
-                }
-
-                // 解放
-                memset((void *)seek_buffer, '\0', sizeof(char) * ret);
-                free((void *)seek_buffer);
-                seek_buffer = NULL;
-              } else {
-                eprintf(stderr, "calloc(3)", NULL);
-              }
-            } else {
-              fprintf(stderr, "%lu = %lu(0x%04lx, 0x%08lX, %lu)\n",
-                  ret, sys,
-                  r0, r1, r2);
-            }
-          }
+          snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu)\n",
+              ret, sys, r0, r1, r2);
+          write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
           break;
       }
 #endif
