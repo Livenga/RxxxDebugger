@@ -157,13 +157,11 @@ void *thread_seekfd(void *p_arg) {
     }
   }
 
-#if 1
   // Note: 下記の処理はメインスレッドで行う
   status = ptrace(PTRACE_DETACH, arg->pid, NULL, NULL);
   if(status == -1) {
     eprintf(stderr, "ptrace(2)", "PTRACE_DETACH");
   }
-#endif
 
   return NULL;
 }
