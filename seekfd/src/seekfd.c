@@ -86,18 +86,28 @@ void *thread_seekfd(void *p_arg) {
       ptrace(PTRACE_GETREGS, arg->pid, NULL, &regs);
 
 #if defined(__ARM_EABI__)
-      unsigned long int r0  = 0;
       unsigned long int ret = 0;
+      unsigned long int r0  = 0,
+                    r1 = 0,
+                    r2 = 0;
+      unsigned long int sys = 0,
+                    ip = 0;
 
       uint8_t *seek_buffer = NULL;
 
-      if(*(regs.uregs + 12) == 1) {
-        r0 = *(regs.uregs + 17);
+      sys = *(regs.uregs + 7);
+      ip  = *(regs.uregs + 12);
+      if(ip  == 1) {
+        r0  = *(regs.uregs + 17);
         ret = *(regs.uregs + 0);
       } else {
-        r0 = *(regs.uregs + 0);
+        r0  = *(regs.uregs + 0);
         ret = 0;
       }
+      r1 = *(regs.uregs + 1);
+      r2 = *(regs.uregs + 2);
+      //r3 = *(regs.uregs + 3);
+      //r4 = *(regs.uregs + 4);
 
       switch(*(regs.uregs + 7)) {
         case SYS_read:
@@ -120,9 +130,7 @@ void *thread_seekfd(void *p_arg) {
                 if(f_verbose) {
                   snprintf(verbose_message, 128, "<- %ld = read(%ld, 0x%08X, %ld)\n",
                       ret,
-                      r0,
-                      *(regs.uregs + 1),
-                      *(regs.uregs + 2));
+                      r0, r1, r2);
 
                   write(STDOUT_FILENO, (const void *)verbose_message, sizeof(char) * strlen(verbose_message));
                   write(STDOUT_FILENO, (const void *)seek_buffer, sizeof(char) * ret);
@@ -140,12 +148,8 @@ void *thread_seekfd(void *p_arg) {
               }
             } else {
               fprintf(stderr, "%lu = %lu(%lu, 0x%08lX, %lu)\n",
-                  ret,               // 返り値
-                  *(regs.uregs + 7), // システムコール番号
-                  r0,                // 第一引数
-                  *(regs.uregs + 1), // 第二引数 
-                  *(regs.uregs + 2)  // 第三引数
-                  );
+                  ret, sys,
+                  r0, r1, r2);
             }
           }
           break;
@@ -183,13 +187,8 @@ void *thread_seekfd(void *p_arg) {
               }
             } else {
               fprintf(stderr, "%lu = %lu(0x%04lx, 0x%08lX, %lu)\n",
-                  ret,               // 返り値
-                  *(regs.uregs + 7), // システムコール番号
-                  r0,                // 第一引数
-                  *(regs.uregs + 4), // 第一引数
-                  *(regs.uregs + 1), // 第二引数 
-                  *(regs.uregs + 2)  // 第三引数
-                  );
+                  ret, sys,
+                  r0, r1, r2);
             }
           }
           break;
