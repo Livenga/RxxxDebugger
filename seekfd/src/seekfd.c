@@ -127,6 +127,12 @@ void *thread_seekfd(void *p_arg) {
         // TODO: 書き込み及び受信するデータや第三引数以降のデータを記録
       }
 
+#if 0
+      // Note: ヘルスチェックに失敗する可能性があり, 再起動を検出
+      snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu)\n",
+          ret, sys, r0, r1, r2);
+      write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
+#else
       switch(sys) {
         case SYS_read:
         case SYS_write:
@@ -135,6 +141,7 @@ void *thread_seekfd(void *p_arg) {
           write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
           break;
       }
+#endif
 #endif
       //fprintf(stderr, "- stopped by signal %d\n", WSTOPSIG(wstatus));
     }

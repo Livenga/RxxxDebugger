@@ -4,7 +4,7 @@
 特定の環境下(ARM 32bit \_\_ARM\_EABI\_\_ = 1)のみを想定して開発しているため, 現在汎用性はない.
 
 
-### NOTEs
+## NOTEs
 ~~`ptrace(PTRACE_GETREGS)` で取得される汎用レジスタの第一引数に該当するレジスタに `/proc/[pid]/fd` に含まれていないような格納されている場合がある.~~
 
 
@@ -33,8 +33,29 @@ struct user_regs {
 };
 ```
 
+### 固有の問題
+* 原因の特定はしていないが, read/write 以外のシステムコールの呼び出し遅延が発生した場合問題が生じる.
 
-### TODO
+```C
+#if 0
+      // Note: ヘルスチェックに失敗する可能性があり, 再起動を検出
+      snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu)\n",
+          ret, sys, r0, r1, r2);
+      write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
+#else
+      switch(sys) {
+        case SYS_read:
+        case SYS_write:
+          snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu)\n",
+              ret, sys, r0, r1, r2);
+          write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
+          break;
+      }
+#endif
+```
+
+
+## TODO
 
 #### 低い重要度
 汎用的なソフトでなく, これからも使い続けていく可能性が低いため修正する可能性は低い.  
