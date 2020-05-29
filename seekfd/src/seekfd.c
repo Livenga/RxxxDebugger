@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <errno.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -51,13 +52,13 @@ void *thread_seekfd(void *p_arg) {
   struct thread_seekfd_arg_t *arg = (struct thread_seekfd_arg_t *)p_arg;
   int status;
 
-
   status = ptrace(PTRACE_ATTACH, arg->pid, NULL, NULL);
   if(status == -1) {
     eprintf(stderr, "ptrace(2)", "PTRACE_ATTACH");
 
     return NULL;
   }
+  status = ptrace(PTRACE_SYSCALL, arg->pid, NULL, NULL);
 
 
   int wstatus = 0;
@@ -144,7 +145,9 @@ void *thread_seekfd(void *p_arg) {
       }
 #endif
 #endif
-      //fprintf(stderr, "- stopped by signal %d\n", WSTOPSIG(wstatus));
+      if(f_verbose) {
+        fprintf(stderr, "- stopped by signal %d\n", WSTOPSIG(wstatus));
+      }
     }
 
     if(is_continue(arg->mutex)) {
@@ -154,10 +157,13 @@ void *thread_seekfd(void *p_arg) {
     }
   }
 
+#if 1
+  // Note: 下記の処理はメインスレッドで行う
   status = ptrace(PTRACE_DETACH, arg->pid, NULL, NULL);
   if(status == -1) {
     eprintf(stderr, "ptrace(2)", "PTRACE_DETACH");
   }
+#endif
 
   return NULL;
 }
@@ -169,6 +175,7 @@ static uint8_t is_continue(pthread_mutex_t *p_mutex) {
 
   int status = pthread_mutex_lock(p_mutex);
   if(status != 0) {
+    errno = status;
     eprintf(stderr, "pthread_mutex_lock(3)", NULL);
 
     return 0;
@@ -178,6 +185,7 @@ static uint8_t is_continue(pthread_mutex_t *p_mutex) {
 
   status = pthread_mutex_unlock(p_mutex);
   if(status != 0) {
+    errno = status;
     eprintf(stderr, "pthread_mutex_unlock(3)", NULL);
 
     return 0;

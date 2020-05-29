@@ -14,6 +14,6 @@ int eprintf(
   }
 
   return (param != NULL)
-    ? fprintf(stderr, "%s: %s %s\n", fn, param, strerror(errno))
-    : fprintf(stderr, "%s: %s\n", fn, strerror(errno));
+    ? fprintf(stderr, "%s: %s %s(%d)\n", fn, param, strerror(errno), errno)
+    : fprintf(stderr, "%s: %s(%d)\n", fn, strerror(errno), errno);
 }

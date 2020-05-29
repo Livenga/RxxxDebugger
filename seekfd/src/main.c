@@ -6,6 +6,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <signal.h>
 #include <time.h>
 #include <pthread.h>
 #include <limits.h>
@@ -61,6 +62,7 @@ extern void *thread_seekfd(void *p_arg);
 uint8_t f_verbose     = 0;
 uint8_t f_thread_exit = 0;
 uint8_t f_output      = 0;
+
 
 
 /**
@@ -217,17 +219,20 @@ int main(
 
   pthread_t thr_seek;
   pthread_mutex_t mtx_seek = PTHREAD_MUTEX_INITIALIZER;
-  pthread_mutexattr_t mtx_attr_seek;
 
   status = pthread_mutex_init(&mtx_seek, NULL);
   if(status != 0) {
     eprintf(stderr, "pthread_mutex_init(3)", NULL);
   }
 
-  status = pthread_mutex_init(&mtx_seek, &mtx_attr_seek);
+#if 0
+  pthread_mutexattr_t mtx_attr_seek;
+
+  status = pthread_mutex_init(&gtx_seek, &mtx_attr_seek);
   if(status != 0) {
     eprintf(stderr, "pthread_mutex_init(3)", NULL);
   }
+#endif
 
   struct thread_seekfd_arg_t thr_args;
   memset((void *)&thr_args, 0, sizeof(struct thread_seekfd_arg_t));
@@ -236,7 +241,6 @@ int main(
   thr_args.mutex     = &mtx_seek;
   thr_args.target_fd = target_fd;
   thr_args.output_fd = output_fd;
-
 
   status = pthread_create(
       /* thread        = */&thr_seek,
@@ -255,7 +259,15 @@ int main(
   f_thread_exit = 1;
   pthread_mutex_unlock(&mtx_seek);
 
-  status = pthread_join(thr_seek, NULL);
+  status = ptrace(PTRACE_DETACH, target_pid, NULL, NULL);
+  if(status == -1) {
+    // Note: スレッドが waitpid(2) 中のプロセスを対象には失敗.
+    // peekfd.detach の ptrace(PTRACE_DETACH) で確認
+    eprintf(stderr, "ptrace(2)", "PTRACE_DETACH");
+  }
+
+  //status = pthread_join(thr_seek, NULL);
+  status = pthread_kill(thr_seek, SIGINT);
   if(status != 0) {
     eprintf(stderr, "pthread_join(3)", NULL);
     return 130;
