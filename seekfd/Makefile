@@ -9,6 +9,10 @@ OBJS 		= $(addprefix $(OBJDIR)/,$(patsubst %.c,%.o,$(SRC)))
 OBJDIRS = $(sort $(dir $(OBJS)))
 
 
+DEFINES  =
+DEFINES += -D__REQUIRED_ROOT__
+#DEFINES += -D__ENABLE_DISPLAY_ALL__
+
 .PHONY: default clean all
 
 
@@ -20,12 +24,14 @@ default:
 
 $(PRJC):$(OBJS)
 	$(CC) -o $@ $^ \
+		-Wall \
 		-pthread
 
 
 $(OBJDIR)/%.o:%.c
 	$(CC) -o $@ -c $< -g \
-		-D__REQUIRED_ROOT__
+		-Wall \
+		$(DEFINES)
 
 
 clean:
