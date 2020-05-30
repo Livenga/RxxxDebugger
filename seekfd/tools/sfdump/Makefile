@@ -6,6 +6,9 @@ SRC  		= $(shell find src/ -name \*.c)
 OBJS 		= $(addprefix $(OBJDIR)/,$(patsubst %.c,%.o,$(SRC)))
 OBJDIRS = $(sort $(dir $(OBJS)))
 
+DEFINES =
+DEFINES += -D__DEBUG__
+DEFINES += -D__ENABLE_SIZE_32__
 
 .PHONY: default clean all
 
@@ -23,7 +26,8 @@ $(PRJC):$(OBJS)
 
 $(OBJDIR)/%.o:%.c
 	$(CC) -o $@ -c $< -g \
-		-Wall
+		-Wall \
+		$(DEFINES)
 
 
 clean:
