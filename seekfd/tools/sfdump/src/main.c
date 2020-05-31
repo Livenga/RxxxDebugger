@@ -5,8 +5,9 @@
 #include <unistd.h>
 #include <getopt.h>
 
+#include "../include/util.h"
 
-#define __DEBUG__
+
 #define GET_OPTARG(argv, optarg, optind) \
   ((optarg != NULL) ? optarg : *(argv + optind))
 
@@ -15,6 +16,10 @@
 extern void analyze_sfdump(
     const char *path,
     const char *define_path);
+
+
+/* src/syscall_number.c */
+extern void syscall_number_get(FILE *fp, size_t *p_count);
 
 
 static uint8_t is_optarg(
@@ -44,6 +49,7 @@ int main(
   }
 
 
+  FILE *fp_defines = NULL;
   char define_path[1024];
   memset((void *)define_path, '\0', sizeof(define_path));
 
@@ -60,6 +66,13 @@ int main(
       case 'D':
         _optarg = GET_OPTARG(argv, optarg, optind);
         strncpy(define_path, _optarg, 1024);
+
+        fp_defines = fopen(define_path, "r");
+        if(fp_defines != NULL) {
+          syscall_number_get(fp_defines);
+        } else {
+          eprintf(stderr, "fopen(3)", define_path);
+        }
         break;
 
       case 'v':
@@ -83,6 +96,10 @@ int main(
   analyze_sfdump(
       /* path        = */sfd_path,
       /* define_path = */(strlen(define_path) > 0) ? define_path : NULL);
+
+  if(fp_defines != NULL) {
+    fclose(fp_defines);
+  }
 
   return 0;
 }

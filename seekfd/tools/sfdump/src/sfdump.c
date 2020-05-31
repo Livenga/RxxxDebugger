@@ -8,8 +8,12 @@
 
 
 
-static uint64_t conv_uint64_t(void *regs, uint16_t position, uint32_t value_size);
+#if defined(__ENABLE_SIZE_32__)
 static uint32_t conv_uint32_t(void *regs, uint16_t position, uint32_t value_size);
+#else
+static uint64_t conv_uint64_t(void *regs, uint16_t position, uint32_t value_size);
+#endif
+
 
 void analyze_sfdump(
     const char *path,
@@ -59,19 +63,7 @@ void analyze_sfdump(
           /* size   = */header.register_size,
           /* nmemb  = */reg_count,
           /* stream = */fp)) > 0) {
-
-#if 1
-    uint64_t sys = conv_uint64_t(reg_values, 0, header.register_size),
-    ip  = conv_uint64_t(reg_values, 1, header.register_size),
-    ret = conv_uint64_t(reg_values, 2, header.register_size),
-    r0  = conv_uint64_t(reg_values, 3, header.register_size),
-    r1  = conv_uint64_t(reg_values, 4, header.register_size),
-    r2  = conv_uint64_t(reg_values, 5, header.register_size);
-
-    fprintf(stderr, "%2lu: %6lu = %4lu(%lu, %lu, %lu)\n",
-        ip, ret, sys,
-        r0, r1, r2);
-#else
+#if defined(__ENABLE_SIZE_32__)
     uint32_t sys = conv_uint32_t(reg_values, 0, header.register_size),
     ip  = conv_uint32_t(reg_values, 1, header.register_size),
     ret = conv_uint32_t(reg_values, 2, header.register_size),
@@ -79,7 +71,18 @@ void analyze_sfdump(
     r1  = conv_uint32_t(reg_values, 4, header.register_size),
     r2  = conv_uint32_t(reg_values, 5, header.register_size);
 
-    fprintf(stderr, "%2u: %6u = %4u(%u, %u, %u)\n",
+    fprintf(stdout, "0x%08x: 0x%08x = %4u(%u, %u, %u)\n",
+        ip, ret, sys,
+        r0, r1, r2);
+#else
+    uint64_t sys = conv_uint64_t(reg_values, 0, header.register_size),
+    ip  = conv_uint64_t(reg_values, 1, header.register_size),
+    ret = conv_uint64_t(reg_values, 2, header.register_size),
+    r0  = conv_uint64_t(reg_values, 3, header.register_size),
+    r1  = conv_uint64_t(reg_values, 4, header.register_size),
+    r2  = conv_uint64_t(reg_values, 5, header.register_size);
+
+    fprintf(stdout, "%2lu: 0x%08lx = %4lu(%lu, %lu, %lu)\n",
         ip, ret, sys,
         r0, r1, r2);
 #endif
@@ -88,16 +91,25 @@ void analyze_sfdump(
 
 pt_end:
   fclose(fp);
+
+  if(reg_values != NULL) {
+    memset(reg_values, 0, reg_count * header.register_size);
+    free(reg_values);
+    reg_values = NULL;
+  }
 }
 
-static uint64_t conv_uint64_t(void *regs, uint16_t position, uint32_t value_size) {
-    uint64_t value = 0;
-    memcpy((void *)&value, regs + (position * value_size), value_size);
-    return value;
-}
 
+#if defined(__ENABLE_SIZE_32__)
 static uint32_t conv_uint32_t(void *regs, uint16_t position, uint32_t value_size) {
     uint32_t value = 0;
     memcpy((void *)&value, regs + (position * value_size), value_size);
     return value;
 }
+#else
+static uint64_t conv_uint64_t(void *regs, uint16_t position, uint32_t value_size) {
+    uint64_t value = 0;
+    memcpy((void *)&value, regs + (position * value_size), value_size);
+    return value;
+}
+#endif
