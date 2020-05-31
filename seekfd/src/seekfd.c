@@ -96,7 +96,10 @@ void *thread_seekfd(void *p_arg) {
       unsigned long int ret = 0;
       unsigned long int r0  = 0,
                     r1 = 0,
-                    r2 = 0;
+                    r2 = 0,
+                    r3 = 0,
+                    r4 = 0,
+                    r5 = 0;
       unsigned long int sys = 0,
                     ip = 0;
 
@@ -113,8 +116,9 @@ void *thread_seekfd(void *p_arg) {
       }
       r1 = *(regs.uregs + 1);
       r2 = *(regs.uregs + 2);
-      //r3 = *(regs.uregs + 3);
-      //r4 = *(regs.uregs + 4);
+      r3 = *(regs.uregs + 3);
+      r4 = *(regs.uregs + 4);
+      r5 = *(regs.uregs + 5);
 
       if(f_output) {
         // Note: 書き込み順序について下記の順序に従う.
@@ -125,14 +129,16 @@ void *thread_seekfd(void *p_arg) {
         write(arg->output_fd, (const void *)&r0,   sizeof(r0));
         write(arg->output_fd, (const void *)&r1,   sizeof(r1));
         write(arg->output_fd, (const void *)&r2,   sizeof(r2));
-
-        // TODO: 書き込み及び受信するデータや第三引数以降のデータを記録
+        // 書き込み及び受信するデータや第三引数以降のデータを記録
+        write(arg->output_fd, (const void *)&r3,   sizeof(r3));
+        write(arg->output_fd, (const void *)&r4,   sizeof(r4));
+        write(arg->output_fd, (const void *)&r5,   sizeof(r5));
       }
 
 #if defined(__ENABLE_DISPLAY_ALL__)
       // Note: ヘルスチェックに失敗する可能性があり, 再起動を検出
-      snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu)\n",
-          ret, sys, r0, r1, r2);
+      snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu, %lu, %lu, %lu)\n",
+          ret, sys, r0, r1, r2, r3, r4, r5);
       write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
 #else
       switch(sys) {

@@ -11,16 +11,15 @@
 #include <pthread.h>
 #include <limits.h>
 #include <regex.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/ptrace.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 #include "../include/seekfd_type.h"
 #include "../include/util.h"
 
 
-#define SEEKFD_VERSION (100)
+#define SEEKFD_VERSION (110)
 
 
 #define GET_OPTARG(argv, optarg, optind) \
@@ -57,7 +56,22 @@ static char *generate_output_path(
  */
 static void print_help(const char *app);
 
+
+
+/* src/dump.c */
+/** 指定プロセスID(pid) が開放しているファイルディスクリプタについて fd に書き込みを行う.
+ * @param fd
+ * @param pid
+ * @returne 成否 [0 : EOF(-1)]
+ */
+extern int dump_write_file_descriptors(
+    int   fd,
+    pid_t pid);
+
+/* src/seekfd.c */
 extern void *thread_seekfd(void *p_arg);
+
+
 
 uint8_t f_verbose     = 0;
 uint8_t f_thread_exit = 0;
@@ -198,7 +212,7 @@ int main(
   // 出力するファイルディスクリプタの作成
   int output_fd = -1;
   if(f_output) {
-    output_fd = open(output_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    output_fd = open(output_path, O_WRONLY | O_CREAT, 0644);
 
     if(output_fd < 0) {
       eprintf(stderr, "open(2)", output_path);
@@ -211,7 +225,11 @@ int main(
     write(output_fd, (const void *)&chr, 1);
     chr = 0xfd;
     write(output_fd, (const void *)&chr, 1);
+
     write(output_fd, (const void *)&version, sizeof(uint16_t));
+
+    // v1.0.0 以降のバージョンで対象プロセスのファイルディスクリプタの番号及び絶対パスを記録
+    dump_write_file_descriptors(output_fd, target_pid);
   }
 
 
@@ -417,6 +435,7 @@ static char *generate_output_path(char *path, size_t size) {
 #endif
     return NULL;
   }
+
 
   strncat(path, "/", size);
   strncat(path, filename, size);
