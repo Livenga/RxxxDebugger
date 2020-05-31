@@ -65,11 +65,6 @@ void *thread_seekfd(void *p_arg) {
 #if defined(__ARM_EABI__)
   struct user_regs regs;
   memset((void *)&regs, 0, sizeof(struct user_regs));
-
-  if(f_output) {
-    uint32_t register_size = sizeof(regs.uregs[0]);
-    write(arg->output_fd, (const void *)&register_size, sizeof(uint32_t));
-  }
 #else
   struct user_regs_struct regs;
   memset((void *)&regs, 0, sizeof(struct user_regs_struct));
@@ -144,8 +139,10 @@ void *thread_seekfd(void *p_arg) {
       switch(sys) {
         case SYS_read:
         case SYS_write:
-          snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu)\n",
-              ret, sys, r0, r1, r2);
+        case SYS_send:
+        case SYS_recv:
+          snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu, %lu, %lu, %lu)\n",
+              ret, sys, r0, r1, r2, r3, r4, r5);
           write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
           break;
       }

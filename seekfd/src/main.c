@@ -228,6 +228,14 @@ int main(
 
     write(output_fd, (const void *)&version, sizeof(uint16_t));
 
+    // XXX: コンパイラのプリプロセッサを用いてもっと適切に分岐させる必要があるかもしれない
+#if defined(__ARM_EABI__)
+    uint32_t register_size = sizeof(unsigned long int);
+#else
+    uint32_t register_size = sizeof(unsigned long long int);
+#endif
+    write(output_fd, (const void *)&register_size, sizeof(uint32_t));
+
     // v1.0.0 以降のバージョンで対象プロセスのファイルディスクリプタの番号及び絶対パスを記録
     dump_write_file_descriptors(output_fd, target_pid);
   }
