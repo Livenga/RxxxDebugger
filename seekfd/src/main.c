@@ -20,7 +20,7 @@
 #include "../include/util.h"
 
 
-#define SEEKFD_VERSION (1)
+#define SEEKFD_VERSION (100)
 
 
 #define GET_OPTARG(argv, optarg, optind) \
