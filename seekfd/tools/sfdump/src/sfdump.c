@@ -8,7 +8,6 @@
 #include "../include/util.h"
 
 
-
 #if defined(__ENABLE_SIZE_32__)
 //
 static uint32_t conv_uint32_t(void *regs, uint16_t position, uint32_t value_size);
@@ -17,6 +16,9 @@ static uint32_t conv_uint32_t(void *regs, uint16_t position, uint32_t value_size
 static uint64_t conv_uint64_t(void *regs, uint16_t position, uint32_t value_size);
 #endif
 
+/**
+ */
+static void _load_file_discriptor_path(FILE *fp);
 /**
  */
 static struct syscall_number_location_t *_find_syscall(
@@ -74,6 +76,10 @@ void analyze_sfdump(
       break;
 
       // TODO: 各々のバージョンに合わせてデータを取得
+    case 110:
+      reg_count = 9;
+      _load_file_discriptor_path(fp);
+      break;
 
     default:
       fprintf(stderr, "未対応のバージョン%u が指定されました.\n", header.version);
@@ -171,6 +177,42 @@ static uint64_t conv_uint64_t(void *regs, uint16_t position, uint32_t value_size
 }
 #endif
 
+/**
+ */
+static void _load_file_discriptor_path(FILE *fp) {
+  extern uint8_t f_verbose;
+
+  int16_t fd_count = 0;
+
+  fread((void *)&fd_count, sizeof(int16_t), 1, fp);
+  if(f_verbose) {
+    fprintf(stdout, "- fd count: %d\n", fd_count);
+  }
+
+  int i;
+  for(i = 0; i < fd_count; ++i) {
+    int32_t fd_number;
+    int16_t path_length;
+
+    fread((void *)&fd_number,   sizeof(int32_t), 1, fp);
+    fread((void *)&path_length, sizeof(int16_t), 1, fp);
+
+#if 0
+    fseek(fp, path_length, SEEK_CUR);
+#else
+    char *_buf = (char *)calloc(path_length + 1, sizeof(char));
+    if(_buf != NULL) {
+      fread((void *)_buf, sizeof(char), path_length, fp);
+
+      fwrite((const void *)_buf, sizeof(char), path_length, stdout);
+      fwrite((const void *)"\n", sizeof(char), 1, stdout);
+
+      free((void *)_buf);
+      _buf = NULL;
+    }
+#endif
+  }
+}
 
 static char *_get_sycall_name(
     FILE   *fp,
