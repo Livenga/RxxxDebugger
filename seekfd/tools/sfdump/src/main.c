@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <getopt.h>
 
+#include "../include/syscall_number_location_t.h"
 #include "../include/util.h"
 
 
@@ -15,18 +16,24 @@
 /* src/sfdump.c */
 extern void analyze_sfdump(
     const char *path,
-    const char *define_path);
+    struct syscall_number_location_t *p_nsys,
+    size_t syscall_count,
+    FILE *fp_syscall);
 
 
 /* src/syscall_number.c */
-extern void syscall_number_get(FILE *fp, size_t *p_count);
+extern struct syscall_number_location_t *syscall_number_get(
+    FILE   *fp,
+    size_t *p_count);
 
 
 static uint8_t is_optarg(
     const struct option *opts,
-    int argc,
-    char *argv[],
-    const char *value);
+    int                 argc,
+    char                *argv[],
+    const char          *value);
+
+static void print_help(const char *app);
 
 uint8_t f_verbose = 0;
 
@@ -45,13 +52,19 @@ int main(
 
 
   if(argc == 1) {
+    print_help(argv[0]);
     return EOF;
   }
 
 
-  FILE *fp_defines = NULL;
+  FILE *fp_syscall = NULL;
   char define_path[1024];
+
   memset((void *)define_path, '\0', sizeof(define_path));
+
+  size_t nsys_count = 0;
+  struct syscall_number_location_t *p_nsys = NULL;
+
 
   int opt;
   while((opt = getopt_long(
@@ -67,9 +80,9 @@ int main(
         _optarg = GET_OPTARG(argv, optarg, optind);
         strncpy(define_path, _optarg, 1024);
 
-        fp_defines = fopen(define_path, "r");
-        if(fp_defines != NULL) {
-          syscall_number_get(fp_defines);
+        fp_syscall = fopen(define_path, "r");
+        if(fp_syscall != NULL) {
+          p_nsys = syscall_number_get(fp_syscall, &nsys_count);
         } else {
           eprintf(stderr, "fopen(3)", define_path);
         }
@@ -80,7 +93,8 @@ int main(
         break;
 
       case 'h':
-        break;
+        print_help(argv[0]);
+        return 0;
     }
   }
 
@@ -94,11 +108,21 @@ int main(
   const char *sfd_path = *(argv + (argc - 1));
 
   analyze_sfdump(
-      /* path        = */sfd_path,
-      /* define_path = */(strlen(define_path) > 0) ? define_path : NULL);
+      /* path          = */sfd_path,
+      /* p_nsys        = */p_nsys,
+      /* syscall_count = */nsys_count,
+      /* fp_syscall    = */fp_syscall);
 
-  if(fp_defines != NULL) {
-    fclose(fp_defines);
+
+  if(fp_syscall != NULL) {
+    fclose(fp_syscall);
+  }
+
+  if(p_nsys != NULL) {
+    memset((void *)p_nsys, 0, sizeof(struct syscall_number_location_t) * nsys_count);
+    free((void *)p_nsys);
+
+    p_nsys = NULL;
   }
 
   return 0;
@@ -153,4 +177,15 @@ static uint8_t is_optarg(
   } while((++_opts)->name != NULL);
 
   return 0;
+}
+
+
+//
+static void print_help(const char *app) {
+  fprintf(stdout, "Usage: %s [OPTION] [sfdump]ファイル\n\n", app);
+  fprintf(stdout, "[Option]\n");
+  fprintf(stdout, "    -D, --define-file : システムコール名定義ファイル\n");
+  fprintf(stdout, "\n");
+  fprintf(stdout, "    -v, --verbose : 冗長メッセージ表示.\n");
+  fprintf(stdout, "    -h, --help    : ヘルプ表示.\n");
 }

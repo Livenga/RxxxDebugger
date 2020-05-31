@@ -4,21 +4,15 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#include "../include/syscall_number_location_t.h"
 #include "../include/util.h"
-
-struct syscall_number_location_t {
-  int32_t number;
-
-  uint32_t start;
-  uint32_t end;
-
-  struct syscall_number_location_t *next;
-};
 
 
 static struct syscall_number_location_t *_syscall_number_new(FILE *fp);
 
-void syscall_number_get(FILE *fp, size_t *p_count) {
+struct syscall_number_location_t *syscall_number_get(
+    FILE *fp,
+    size_t *p_count) {
   fseek(fp, 0L, SEEK_SET);
 
   struct syscall_number_location_t *p_root = NULL,
@@ -27,15 +21,7 @@ void syscall_number_get(FILE *fp, size_t *p_count) {
     struct syscall_number_location_t *p_nsys = _syscall_number_new(fp);
 
     if(p_nsys != NULL) {
-      fprintf(stderr, "%d\n", p_nsys->number);
-
-#if 0
-      memset((void *)p_nsys, '\0', sizeof(struct syscall_number_location_t));
-      p_nsys->next = NULL;
-      free((void *)p_nsys);
-      p_nsys = NULL;
-#endif
-
+      //fprintf(stderr, "%d\n", p_nsys->number);
 
       if(p_root == NULL) {
         p_root = p_nsys;
@@ -60,11 +46,24 @@ void syscall_number_get(FILE *fp, size_t *p_count) {
 
   count = 0;
   for(p_prev = p_root; p_prev != NULL; p_prev = p_prev->next) {
-    struct syscall_number_location_t *p_nsys = n_nsyses + count;
-
+    struct syscall_number_location_t *p_nsys = n_nsyses + count++;
     memcpy(p_nsys, p_prev, sizeof(struct syscall_number_location_t));
+
     p_nsys->next = NULL;
   }
+
+  do {
+    p_prev = p_root->next;
+
+    memset((void *)p_root, '\0', sizeof(struct syscall_number_location_t));
+    p_root->next = NULL;
+    free((void *)p_root);
+
+    p_root = p_prev;
+  } while(p_root != NULL);
+
+
+  return n_nsyses;
 }
 
 
@@ -78,6 +77,13 @@ static struct syscall_number_location_t *_syscall_number_new(FILE *fp) {
 #endif
     return NULL;
   }
+
+  long l_start = 0, l_end = 0;
+
+  // システムコール名開始位置
+  // ファイルディスクリプタの現在の位置から
+  // fgets で読み取った文字数を戻す.
+  l_start = ftell(fp) - strlen(buf);
 
   char *p_eq = strchr(buf, '='),
        *p_nl = strchr(buf, '\n');
@@ -97,9 +103,10 @@ static struct syscall_number_location_t *_syscall_number_new(FILE *fp) {
     return NULL;
   }
 
+  // 開始位置に '=' までの文字数を加算
+  // l_start から l_end までがシステムコール名になる
+  l_end = l_start + (p_eq - buf);
 
-  long l_start = ftell(fp) - strlen(buf),
-       l_end   = ftell(fp);
 
   char *endptr = NULL;
   int32_t number = strtol(p_eq + 1, &endptr, 10);
