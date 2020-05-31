@@ -9,7 +9,6 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <sys/types.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 
 
@@ -164,14 +163,27 @@ static void print_fds(pid_t pid) {
 
     snprintf(path, 1024, "/proc/%d/fd/%s", pid, rdir->d_name);
 
-    if(realpath(path, resolved_path) != NULL) {
-      fprintf(stdout, "\t\033[1;36m%s\033[0m -> %s\n", path, resolved_path);
-    } else {
-      if(f_verbose) {
-        eprintf(stderr, "realpath(3)", path);
-      }
-      fprintf(stdout, "\t\033[1;36m%s\033[0m\n", path);
+    struct stat statbuf;
+    memset((void *)&statbuf, '\0', sizeof(struct stat));
+
+    int status = lstat(path, &statbuf);
+    if(status != 0) {
+      eprintf(stderr, "stat(2)", path);
     }
+
+
+    switch(statbuf.st_mode & S_IFMT) {
+      case S_IFLNK:
+        realpath(path, resolved_path);
+        fprintf(stdout, "\t\033[36;1m%s\033[0m -> %s", path, resolved_path);
+        break;
+
+      default:
+        fprintf(stdout, "\t%s", path);
+        break;
+    }
+
+    fprintf(stdout, "\n");
   }
 
   closedir(odir);
