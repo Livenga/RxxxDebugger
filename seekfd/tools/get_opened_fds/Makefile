@@ -1,6 +1,6 @@
 EABI 		= /opt/Impinj/octane_etk/arm-toolchain/bin/arm-none-linux-gnueabi
-#CC      = $(EABI)-gcc
-CC      = gcc
+CC      = $(EABI)-gcc
+#CC      = gcc
 OBJDIR  = objs
 PRJC    = get_opened_fd
 
