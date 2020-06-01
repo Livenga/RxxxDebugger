@@ -45,5 +45,5 @@ clean:
 
 
 libtask:
-	make --directory libtask/ -f libtask.mk all
+	make -C libtask -f libtask.mk all
 	cp libtask/libtask.so . -v
