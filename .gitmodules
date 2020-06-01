@@ -1,3 +1,7 @@
 [submodule "uerr/libstm32f042k6"]
 	path = uerr/libstm32f042k6
 	url = git@github.com:Livenga/libstm32f042k6.git
+[submodule "seekfd/libtask"]
+	path = seekfd/libtask
+	url = git@github.com:Livenga/libtask.git
+	branch = master
