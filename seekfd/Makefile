@@ -1,6 +1,6 @@
 EABI 		= /opt/Impinj/octane_etk/arm-toolchain/bin/arm-none-linux-gnueabi
-CC      = $(EABI)-gcc
-#CC      = gcc
+#CC      = $(EABI)-gcc
+CC      = gcc
 OBJDIR  = objs
 PRJC    = seekfd
 
@@ -13,7 +13,8 @@ DEFINES  =
 DEFINES += -D__REQUIRED_ROOT__
 #DEFINES += -D__ENABLE_DISPLAY_ALL__
 
-.PHONY: default clean all
+
+.PHONY: default all clean libtask
 
 
 default:
@@ -34,10 +35,15 @@ $(OBJDIR)/%.o:%.c
 		$(DEFINES)
 
 
+all:
+	make clean default
+
+
 clean:
 	[ ! -f $(PRJC)   ] || rm -v $(PRJC)
 	[ ! -d $(OBJDIR) ] || rm -rv $(OBJDIR)
 
 
-all:
-	make clean default
+libtask:
+	make --directory=libtask -f Makefile
+	cp libtask/libtask.so . -v
