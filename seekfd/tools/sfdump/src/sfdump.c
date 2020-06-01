@@ -202,6 +202,7 @@ static void _load_file_discriptor_path(FILE *fp) {
 #else
     char *_buf = (char *)calloc(path_length + 1, sizeof(char));
     if(_buf != NULL) {
+      fprintf(stdout, "%3d: ", fd_number);
       fread((void *)_buf, sizeof(char), path_length, fp);
 
       fwrite((const void *)_buf, sizeof(char), path_length, stdout);
