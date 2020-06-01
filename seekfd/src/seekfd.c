@@ -23,12 +23,26 @@
 #define BUFFER_LIMIT 65536
 
 
+extern void seekfd_write_reg(
+    int fd,
+    unsigned long int sys,
+    unsigned long int ip,
+    unsigned long int ret,
+    unsigned long int r0,
+    unsigned long int r1,
+    unsigned long int r2,
+    unsigned long int r3,
+    unsigned long int r4,
+    unsigned long int r5);
+
+
 /** スレッドを持続可能かどうかを確認
  * @param mutex Muex
  * @return 1 or 0
  */
 static uint8_t is_continue(pthread_mutex_t *p_mutex);
 
+#if 0
 /** 対象プロセスで管理されているメモリからデータを取得
  * @param pid  対象プロセスID
  * @param addr 開始アドレス
@@ -41,7 +55,7 @@ static size_t peek_data(
     uint32_t addr,
     uint8_t  *buf,
     uint32_t size);
-
+#endif
 
 /**
  */
@@ -118,6 +132,7 @@ void *thread_seekfd(void *p_arg) {
       if(f_output) {
         // Note: 書き込み順序について下記の順序に従う.
         // v1 @ [sys, ip, ret, r0, r1, r2]
+#if 0
         write(arg->output_fd, (const void *)&sys,  sizeof(sys));
         write(arg->output_fd, (const void *)&ip,   sizeof(ip));
         write(arg->output_fd, (const void *)&ret,  sizeof(ret));
@@ -128,6 +143,12 @@ void *thread_seekfd(void *p_arg) {
         write(arg->output_fd, (const void *)&r3,   sizeof(r3));
         write(arg->output_fd, (const void *)&r4,   sizeof(r4));
         write(arg->output_fd, (const void *)&r5,   sizeof(r5));
+#else
+        seekfd_write_reg(
+            arg->output_fd,
+            sys, ip, ret,
+            r0, r1, r2, r3, r4, r5);
+#endif
       }
 
 #if defined(__ENABLE_DISPLAY_ALL__)
@@ -138,7 +159,9 @@ void *thread_seekfd(void *p_arg) {
 #else
       switch(sys) {
         case SYS_read:
+        case SYS_readv:
         case SYS_write:
+        case SYS_writev:
         case SYS_send:
         case SYS_recv:
           snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu, %lu, %lu, %lu)\n",
@@ -196,6 +219,7 @@ static uint8_t is_continue(pthread_mutex_t *p_mutex) {
 }
 
 
+#if 0
 //
 static size_t peek_data(
     pid_t    pid,
@@ -225,3 +249,4 @@ static size_t peek_data(
 
   return (size_t)size;
 }
+#endif

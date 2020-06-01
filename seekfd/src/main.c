@@ -212,7 +212,7 @@ int main(
   // 出力するファイルディスクリプタの作成
   int output_fd = -1;
   if(f_output) {
-    output_fd = open(output_path, O_WRONLY | O_CREAT, 0644);
+    output_fd = open(output_path, O_WRONLY | O_CREAT | O_SYNC, 0644);
 
     if(output_fd < 0) {
       eprintf(stderr, "open(2)", output_path);
