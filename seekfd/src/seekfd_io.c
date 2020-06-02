@@ -18,6 +18,7 @@
 #include "../include/seekfd_type.h"
 #include "../include/util.h"
 #include "../libtask/include/libtask.h"
+#include "../include/tman.h"
 
 
 struct write_reg_arg_t {
@@ -29,6 +30,8 @@ struct write_reg_arg_t {
 static void *_async_write_reg(void *arg);
 
 
+/**
+ */
 void seekfd_write_reg(
     int fd,
     unsigned long int sys,
@@ -45,22 +48,25 @@ void seekfd_write_reg(
   };
 
   struct task_t *p_task = task_new(
-      _async_write_reg,
-      &arg,
-      0);
+      /* routine     = */_async_write_reg,
+      /* args        = */&arg,
+      /* return_size = */0);
 
-  task_start(p_task);
-
-  task_join(p_task);
-
-  task_release(p_task);
+  struct task_t *p_ret = tman_add(p_task);
+  if(p_ret != NULL) {
+    task_start(p_task);
+  } else {
+    fprintf(stderr, "- タスクの追加に失敗.\n");
+  }
 }
 
 
 static void *_async_write_reg(void *arg) {
   struct write_reg_arg_t *regs = (struct write_reg_arg_t *)arg;
 
-  fprintf(stderr, "%p\n", arg);
+#if 0
+  fprintf(stderr, "- _async_write_reg arg: %p\n", arg);
+#endif
 
   write(
       regs->fd,

@@ -16,12 +16,12 @@
 #include <sys/stat.h>
 
 #include "../include/seekfd_type.h"
+#include "../include/tman.h"
 #include "../include/util.h"
 
 #include "../libtask/include/libtask.h"
 
 
-#define TASK_LIMIT (32)
 #define SEEKFD_VERSION (110)
 
 
@@ -89,8 +89,6 @@ uint8_t f_output      = 0;
 
 uint8_t g_f_is_continue = 1;
 pid_t g_target_pid = 0;
-
-struct task_t *g_tasks[TASK_LIMIT];
 
 
 /**
@@ -266,10 +264,7 @@ int main(
   int status;
 
   // タスク配列の初期化
-  int i;
-  for(i = 0; i < TASK_LIMIT; ++i) {
-    *(g_tasks + i) = NULL;
-  }
+  tman_init();
 
 
   // SIGINT ハンドラ設定
@@ -308,10 +303,12 @@ int main(
   timer_t timerid;
   struct itimerspec itval;
 
-  itval.it_value.tv_sec     = 5;
-  itval.it_value.tv_nsec    = 0;
-  itval.it_interval.tv_sec  = 5;
-  itval.it_interval.tv_nsec = 0;
+  // XXX: タスクの上限数, システムコールの呼び出し回数, タイマ呼び出し間隔などの兼ね合い
+  // 現在, 未調整のため挙動の確認と検証が必要
+  itval.it_value.tv_sec     = 1;
+  itval.it_value.tv_nsec    = 500000;
+  itval.it_interval.tv_sec  = 1;
+  itval.it_interval.tv_nsec = 500000;
 
   status = timer_create(
       /* clockid = */CLOCK_REALTIME,
@@ -534,21 +531,5 @@ static void SIGALRM_handler(
     int       sig,
     siginfo_t *p_info,
     void      *ctx) {
-  extern uint8_t f_verbose;
-  int i;
-
-  for(i = 0; i < TASK_LIMIT; ++i) {
-    struct task_t *ptsk = *(g_tasks + i);
-    if(ptsk != NULL
-        && (ptsk->status == TASK_STOPPED || ptsk->status == TASK_ABORT)) {
-      if(f_verbose) {
-        fprintf(stderr, "- task(thread: %lu) release\n", (unsigned long)ptsk->thread);
-      }
-      task_join(ptsk);
-      task_release(ptsk);
-
-      ptsk = NULL;
-    }
-  }
-  //fprintf(stderr, "- Running...\n");
+  tman_gc();
 }

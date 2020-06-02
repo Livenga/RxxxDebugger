@@ -10,6 +10,7 @@ OBJDIRS = $(sort $(dir $(OBJS)))
 
 DEFINES  =
 DEFINES += -D__REQUIRED_ROOT__
+DEFINES += -D__DEBUG__
 #DEFINES += -D__ENABLE_DISPLAY_ALL__
 
 
@@ -26,7 +27,8 @@ $(PRJC):$(OBJS)
 	$(CC) -o $@ $^ \
 		-Wall \
 		-pthread \
-		-L. -ltask
+		-L. -ltask \
+		-lrt
 
 
 $(OBJDIR)/%.o:%.c
@@ -36,7 +38,7 @@ $(OBJDIR)/%.o:%.c
 
 
 all:
-	make clean default libtask
+	make clean libtask default
 
 
 clean:
