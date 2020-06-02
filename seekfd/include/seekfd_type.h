@@ -6,9 +6,8 @@
 #include <pthread.h>
 
 
-struct thread_seekfd_arg_t {
+struct seekfd_arg_t {
   pid_t pid;
-  pthread_mutex_t *mutex;
 
   int32_t target_fd;
   int output_fd;

@@ -18,9 +18,13 @@
 #include "../include/seekfd_type.h"
 #include "../include/util.h"
 
+#include "../libtask/include/libtask.h"
+
+
 
 //#define BUFFER_LIMIT 8192
 #define BUFFER_LIMIT 65536
+
 
 
 extern void seekfd_write_reg(
@@ -35,12 +39,6 @@ extern void seekfd_write_reg(
     unsigned long int r4,
     unsigned long int r5);
 
-
-/** スレッドを持続可能かどうかを確認
- * @param mutex Muex
- * @return 1 or 0
- */
-static uint8_t is_continue(pthread_mutex_t *p_mutex);
 
 #if 0
 /** 対象プロセスで管理されているメモリからデータを取得
@@ -59,20 +57,21 @@ static size_t peek_data(
 
 /**
  */
-void *thread_seekfd(void *p_arg) {
+int do_seekfd(struct seekfd_arg_t args) {
   extern uint8_t f_verbose;
   extern uint8_t f_output;
+  extern uint8_t g_f_is_continue;
 
-  struct thread_seekfd_arg_t *arg = (struct thread_seekfd_arg_t *)p_arg;
+
   int status;
 
-  status = ptrace(PTRACE_ATTACH, arg->pid, NULL, NULL);
+  status = ptrace(PTRACE_ATTACH, args.pid, NULL, NULL);
   if(status == -1) {
     eprintf(stderr, "ptrace(2)", "PTRACE_ATTACH");
 
-    return NULL;
+    return EOF;
   }
-  status = ptrace(PTRACE_SYSCALL, arg->pid, NULL, NULL);
+  status = ptrace(PTRACE_SYSCALL, args.pid, NULL, NULL);
 
 
   int wstatus = 0;
@@ -88,9 +87,9 @@ void *thread_seekfd(void *p_arg) {
   char msg[128];
   memset((void *)msg, '\0', sizeof(msg));
 
-  for(;;) {
+  while(g_f_is_continue) {
     //fprintf(stderr, "--- Running...\n");
-    status = waitpid(arg->pid, &wstatus, 0);
+    status = waitpid(args.pid, &wstatus, 0);
 
     if(WIFEXITED(wstatus)) {
       break;
@@ -99,7 +98,7 @@ void *thread_seekfd(void *p_arg) {
         fprintf(stderr, "- terminated by signal %d\n", WTERMSIG(wstatus));
       }
     } else if(WIFSTOPPED(wstatus)) {
-      ptrace(PTRACE_GETREGS, arg->pid, NULL, &regs);
+      ptrace(PTRACE_GETREGS, args.pid, NULL, &regs);
 
 #if defined(__ARM_EABI__)
       unsigned long int ret = 0;
@@ -145,7 +144,7 @@ void *thread_seekfd(void *p_arg) {
         write(arg->output_fd, (const void *)&r5,   sizeof(r5));
 #else
         seekfd_write_reg(
-            arg->output_fd,
+            args.output_fd,
             sys, ip, ret,
             r0, r1, r2, r3, r4, r5);
 #endif
@@ -176,46 +175,16 @@ void *thread_seekfd(void *p_arg) {
       }
     }
 
-    if(is_continue(arg->mutex)) {
-      ptrace(PTRACE_SYSCALL, arg->pid, NULL, NULL);
-    } else {
-      break;
-    }
+    ptrace(PTRACE_SYSCALL, args.pid, NULL, NULL);
   }
 
   // Note: 下記の処理はメインスレッドで行う
-  status = ptrace(PTRACE_DETACH, arg->pid, NULL, NULL);
+  status = ptrace(PTRACE_DETACH, args.pid, NULL, NULL);
   if(status == -1) {
     eprintf(stderr, "ptrace(2)", "PTRACE_DETACH");
   }
 
-  return NULL;
-}
-
-
-static uint8_t is_continue(pthread_mutex_t *p_mutex) {
-  extern uint8_t f_thread_exit;
-  uint8_t ret = 0;
-
-  int status = pthread_mutex_lock(p_mutex);
-  if(status != 0) {
-    errno = status;
-    eprintf(stderr, "pthread_mutex_lock(3)", NULL);
-
-    return 0;
-  }
-
-  ret = (f_thread_exit == 0);
-
-  status = pthread_mutex_unlock(p_mutex);
-  if(status != 0) {
-    errno = status;
-    eprintf(stderr, "pthread_mutex_unlock(3)", NULL);
-
-    return 0;
-  }
-
-  return ret;
+  return 0;
 }
 
 

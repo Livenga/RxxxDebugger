@@ -18,7 +18,10 @@
 #include "../include/seekfd_type.h"
 #include "../include/util.h"
 
+#include "../libtask/include/libtask.h"
 
+
+#define TASK_LIMIT (32)
 #define SEEKFD_VERSION (110)
 
 
@@ -57,6 +60,13 @@ static char *generate_output_path(
 static void print_help(const char *app);
 
 
+/**
+ */
+static void SIGINT_handler(int sig, siginfo_t *p_info, void *ctx);
+/**
+ */
+static void SIGALRM_handler(int sig, siginfo_t *p_info, void *ctx);
+
 
 /* src/dump.c */
 /** 指定プロセスID(pid) が開放しているファイルディスクリプタについて fd に書き込みを行う.
@@ -69,7 +79,7 @@ extern int dump_write_file_descriptors(
     pid_t pid);
 
 /* src/seekfd.c */
-extern void *thread_seekfd(void *p_arg);
+extern int do_seekfd(struct seekfd_arg_t args);
 
 
 
@@ -77,6 +87,10 @@ uint8_t f_verbose     = 0;
 uint8_t f_thread_exit = 0;
 uint8_t f_output      = 0;
 
+uint8_t g_f_is_continue = 1;
+pid_t g_target_pid = 0;
+
+struct task_t *g_tasks[TASK_LIMIT];
 
 
 /**
@@ -113,11 +127,19 @@ int main(
         if(target_pid == 0) {
           target_pid = strtoul(GET_OPTARG(argv, optarg, optind), NULL, 10);
         }
+
+        if(g_target_pid == 0) {
+          g_target_pid = strtoul(GET_OPTARG(argv, optarg, optind), NULL, 10);
+        }
         break;
 
       case 'n':
         if(target_pid == 0) {
           target_pid = get_pid_by_name(GET_OPTARG(argv, optarg, optind));
+        }
+
+        if(g_target_pid == 0) {
+          g_target_pid = get_pid_by_name(GET_OPTARG(argv, optarg, optind));
         }
         break;
 
@@ -243,66 +265,85 @@ int main(
 
   int status;
 
-  pthread_t thr_seek;
-  pthread_mutex_t mtx_seek = PTHREAD_MUTEX_INITIALIZER;
+  // タスク配列の初期化
+  int i;
+  for(i = 0; i < TASK_LIMIT; ++i) {
+    *(g_tasks + i) = NULL;
+  }
 
-  status = pthread_mutex_init(&mtx_seek, NULL);
+
+  // SIGINT ハンドラ設定
+  struct sigaction sa_sigint, sa_old_sigint;
+  memset((void *)&sa_sigint, '\0', sizeof(struct sigaction));
+
+  sigemptyset(&sa_sigint.sa_mask);
+  sa_sigint.sa_flags     = SA_SIGINFO | SA_RESTART;
+  sa_sigint.sa_sigaction = SIGINT_handler;
+
+  status = sigaction(SIGINT, &sa_sigint, &sa_old_sigint);
   if(status != 0) {
-    eprintf(stderr, "pthread_mutex_init(3)", NULL);
+    eprintf(stderr, "sigaction(2)", "SIGINT");
+
+    return EOF;
   }
 
-#if 0
-  pthread_mutexattr_t mtx_attr_seek;
+  // タイマ設定
+  struct sigaction sa_timer, sa_old_timer;
 
-  status = pthread_mutex_init(&gtx_seek, &mtx_attr_seek);
+  memset((void *)&sa_timer,  '\0', sizeof(struct sigaction));
+  memset((void *)&sa_old_timer,  '\0', sizeof(struct sigaction));
+
+  sigemptyset(&sa_timer.sa_mask);
+  sa_timer.sa_flags     = SA_SIGINFO | SA_RESTART;
+  sa_timer.sa_sigaction = SIGALRM_handler;
+
+  status = sigaction(SIGALRM, &sa_timer, &sa_old_timer);
   if(status != 0) {
-    eprintf(stderr, "pthread_mutex_init(3)", NULL);
+    eprintf(stderr, "sigaction(2)", "SIGALRM");
+
+    return EOF;
   }
-#endif
 
-  struct thread_seekfd_arg_t thr_args;
-  memset((void *)&thr_args, 0, sizeof(struct thread_seekfd_arg_t));
 
-  thr_args.pid       = target_pid;
-  thr_args.mutex     = &mtx_seek;
-  thr_args.target_fd = target_fd;
-  thr_args.output_fd = output_fd;
+  timer_t timerid;
+  struct itimerspec itval;
 
-  status = pthread_create(
-      /* thread        = */&thr_seek,
-      /* attr          = */NULL,
-      /* start_routine = */thread_seekfd,
-      /* arg           = */(void *)&thr_args);
+  itval.it_value.tv_sec     = 5;
+  itval.it_value.tv_nsec    = 0;
+  itval.it_interval.tv_sec  = 5;
+  itval.it_interval.tv_nsec = 0;
 
+  status = timer_create(
+      /* clockid = */CLOCK_REALTIME,
+      /* sevp    = */NULL,
+      /* timerid = */&timerid);
   if(status != 0) {
-    eprintf(stderr, "pthread_create(3)", NULL);
-    return 129;
+    eprintf(stderr, "timer_create(2)", NULL);
   }
 
-  getchar();
+  timer_settime(
+      /* timerid   = */timerid,
+      /* flags     = */0,
+      /* new_value = */&itval,
+      /* old_value = */NULL);
 
-  pthread_mutex_lock(&mtx_seek);
-  f_thread_exit = 1;
-  pthread_mutex_unlock(&mtx_seek);
 
-  status = ptrace(PTRACE_DETACH, target_pid, NULL, NULL);
-  if(status == -1) {
-    // Note: スレッドが waitpid(2) 中のプロセスを対象には失敗.
-    // peekfd.detach の ptrace(PTRACE_DETACH) で確認
-    eprintf(stderr, "ptrace(2)", "PTRACE_DETACH");
+  struct seekfd_arg_t sfd_args;
+  memset((void *)&sfd_args, '\0', sizeof(struct seekfd_arg_t));
+
+  sfd_args.pid       = g_target_pid;
+  sfd_args.target_fd = target_fd;
+  sfd_args.output_fd = output_fd;
+
+  do_seekfd(sfd_args);
+
+  if(sfd_args.output_fd > 0) {
+    close(sfd_args.output_fd);
   }
 
-  //status = pthread_join(thr_seek, NULL);
-  status = pthread_kill(thr_seek, SIGINT);
-  if(status != 0) {
-    eprintf(stderr, "pthread_join(3)", NULL);
-    return 130;
-  }
-
-  if(thr_args.output_fd > 0) {
-    close(thr_args.target_fd);
-  }
-  pthread_mutex_destroy(&mtx_seek);
+  timer_delete(/* timerid = */timerid);
+  sigaction(SIGALRM, &sa_old_timer, NULL);
+  sigaction(SIGINT, &sa_old_sigint, NULL);
 
   return 0;
 }
@@ -464,4 +505,50 @@ static void print_help(const char *app) {
   fprintf(stdout, "  -d, --output-directory: 出力先ディレクトリ\n");
   fprintf(stdout, "                          出力パスは先に指定されたオプションが優先される.\n");
   fprintf(stdout, "\n");
+}
+
+
+//
+static void SIGINT_handler(
+    int       sig,
+    siginfo_t *p_info,
+    void      *ctx) {
+  extern pid_t g_target_pid;
+  extern uint8_t g_f_is_continue;
+
+  fprintf(stderr, "%d, interrupt(%d)!\n",
+      (int32_t)g_target_pid,
+      (int32_t)sig);
+
+  g_f_is_continue = 0;
+  if(ptrace(PTRACE_DETACH, g_target_pid, NULL, NULL) != 0) {
+    eprintf(stderr, "ptrace(2)", "PTRACE_DETACH");
+  }
+
+  exit(0);
+}
+
+
+//
+static void SIGALRM_handler(
+    int       sig,
+    siginfo_t *p_info,
+    void      *ctx) {
+  extern uint8_t f_verbose;
+  int i;
+
+  for(i = 0; i < TASK_LIMIT; ++i) {
+    struct task_t *ptsk = *(g_tasks + i);
+    if(ptsk != NULL
+        && (ptsk->status == TASK_STOPPED || ptsk->status == TASK_ABORT)) {
+      if(f_verbose) {
+        fprintf(stderr, "- task(thread: %lu) release\n", (unsigned long)ptsk->thread);
+      }
+      task_join(ptsk);
+      task_release(ptsk);
+
+      ptsk = NULL;
+    }
+  }
+  //fprintf(stderr, "- Running...\n");
 }
