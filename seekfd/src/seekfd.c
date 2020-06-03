@@ -16,9 +16,8 @@
 #include <sys/syscall.h>
 
 #include "../include/seekfd_type.h"
+#include "../include/seekfd_dump.h"
 #include "../include/util.h"
-
-#include "../libtask/include/libtask.h"
 
 
 
@@ -56,7 +55,7 @@ static size_t peek_data(
 #endif
 
 /**
- */
+*/
 int do_seekfd(struct seekfd_arg_t args) {
   extern uint8_t f_verbose;
   extern uint8_t f_output;
@@ -132,13 +131,6 @@ int do_seekfd(struct seekfd_arg_t args) {
       // このプログラムではデータの操作を想定していないため
       // 呼び出し完了時の処理に限定
       if(ip == 1) {
-        if(f_verbose) {
-          //memset((void *)msg, '\0', sizeof(msg));
-          snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu, %lu, %lu, %lu)\n",
-              ret, sys, r0, r1, r2, r3, r4, r5);
-
-          write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
-        }
 
         // Note: 書き込み順序について下記の順序に従う.
         // v1   @ [sys, ip, ret, r0, r1, r2]
@@ -146,17 +138,63 @@ int do_seekfd(struct seekfd_arg_t args) {
         switch(sys) {
           case SYS_read:
           case SYS_readv:
+          case SYS_preadv:
           case SYS_recv:
-            break;
-
-          case SYS_write:
           case SYS_writev:
+          case SYS_pwritev:
           case SYS_send:
-            if(f_output) {
+#if 1
+            if(f_output && args.target_fd == r0) {
               seekfd_write_reg(
                   args.output_fd,
                   sys, ip, ret,
                   r0, r1, r2, r3, r4, r5);
+
+              if(sys == SYS_readv) {
+                seekfd_dump_readv(
+                    args.output_fd,
+                    args.pid,
+                    r1,
+                    r2);
+              } else if(sys == SYS_read) {
+                seekfd_dump_read(
+                    /* fd   = */args.output_fd,
+                    /* pid  = */args.pid,
+                    /* addr = */r1,
+                    /* size = */ret);
+              } else if(sys == SYS_write) {
+                seekfd_dump_write(
+                    /* fd   = */args.output_fd,
+                    /* pid  = */args.pid,
+                    /* addr = */r1,
+                    /* size = */ret);
+              } else if(sys == SYS_writev) {
+                seekfd_dump_writev(
+                    args.output_fd,
+                    args.pid,
+                    r1,
+                    r2);
+              } else {
+                int32_t _ret_size = 0;
+                write(args.output_fd, (const void *)&_ret_size, sizeof(int32_t));
+              }
+            }
+#else
+            seekfd_write_reg(
+                args.output_fd,
+                sys, ip, ret,
+                r0, r1, r2, r3, r4, r5);
+
+            int32_t _ret_size = 0;
+            write(args.output_fd, (const void *)&_ret_size, sizeof(int32_t));
+#endif
+
+            if(f_verbose) {
+              //memset((void *)msg, '\0', sizeof(msg));
+              snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu, %lu, %lu, %lu)\n",
+                  ret, sys, r0, r1, r2, r3, r4, r5);
+
+              write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
             }
 
             break;

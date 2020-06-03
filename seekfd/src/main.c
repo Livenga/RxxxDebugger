@@ -21,7 +21,8 @@
 #include "../libtask/include/libtask.h"
 
 
-#define SEEKFD_VERSION (110)
+#define SEEKFD_VERSION "1.1.0"
+#define SEEKFD_FILE_VERSION (200)
 
 
 #define GET_OPTARG(argv, optarg, optind) \
@@ -228,6 +229,12 @@ int main(
   // 出力するファイルディスクリプタの作成
   int output_fd = -1;
   if(f_output) {
+    // ファイル出力する場合監視対象のファイルディスクリプタの指定を必須にする.
+    if(! (target_fd >= 0)) {
+      fprintf(stderr, "- 監視対象のファイルディスクリプタを指定してください.\n");
+      return EOF;
+    }
+
     output_fd = open(output_path, O_WRONLY | O_CREAT | O_SYNC, 0644);
 
     if(output_fd < 0) {
@@ -236,7 +243,7 @@ int main(
     }
 
     uint8_t chr = 's';
-    uint16_t version = SEEKFD_VERSION;
+    uint16_t version = SEEKFD_FILE_VERSION;
 
     write(output_fd, (const void *)&chr, 1);
     chr = 0xfd;
