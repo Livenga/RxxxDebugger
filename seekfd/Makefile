@@ -26,9 +26,7 @@ default:
 $(PRJC):$(OBJS)
 	$(CC) -o $@ $^ \
 		-Wall \
-		-pthread \
-		-L. -ltask \
-		-lrt
+		-pthread
 
 
 $(OBJDIR)/%.o:%.c

@@ -14,6 +14,7 @@
 #include <sys/wait.h>
 #include <sys/user.h>
 #include <sys/syscall.h>
+#include <sys/uio.h>
 
 #include "../include/seekfd_type.h"
 #include "../include/util.h"
@@ -21,17 +22,6 @@
 #include "../include/tman.h"
 
 
-struct write_reg_arg_t {
-  int fd;
-  unsigned long int regs[9];
-};
-
-
-static void *_async_write_reg(void *arg);
-
-
-/**
- */
 void seekfd_write_reg(
     int fd,
     unsigned long int sys,
@@ -43,35 +33,21 @@ void seekfd_write_reg(
     unsigned long int r3,
     unsigned long int r4,
     unsigned long int r5) {
-  struct write_reg_arg_t arg = {
-    fd, {sys, ip, ret, r0, r1, r2, r3, r4, r5},
+  if(fd < 0) {
+    return;
+  }
+
+  const struct iovec iov[9] = {
+    {&sys, sizeof(unsigned long int)},
+    {&ip,  sizeof(unsigned long int)},
+    {&ret, sizeof(unsigned long int)},
+    {&r0,  sizeof(unsigned long int)},
+    {&r1,  sizeof(unsigned long int)},
+    {&r2,  sizeof(unsigned long int)},
+    {&r3,  sizeof(unsigned long int)},
+    {&r4,  sizeof(unsigned long int)},
+    {&r5,  sizeof(unsigned long int)},
   };
 
-  struct task_t *p_task = task_new(
-      /* routine     = */_async_write_reg,
-      /* args        = */&arg,
-      /* return_size = */0);
-
-  struct task_t *p_ret = tman_add(p_task);
-  if(p_ret != NULL) {
-    task_start(p_task);
-  } else {
-    fprintf(stderr, "- タスクの追加に失敗.\n");
-  }
-}
-
-
-static void *_async_write_reg(void *arg) {
-  struct write_reg_arg_t *regs = (struct write_reg_arg_t *)arg;
-
-#if 0
-  fprintf(stderr, "- _async_write_reg arg: %p\n", arg);
-#endif
-
-  write(
-      regs->fd,
-      (const void *)regs->regs,
-      sizeof(unsigned long int) * 9);
-
-  return NULL;
+  writev(fd, iov, 9);
 }

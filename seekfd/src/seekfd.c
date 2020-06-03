@@ -128,57 +128,51 @@ int do_seekfd(struct seekfd_arg_t args) {
       r4 = *(regs.uregs + 4);
       r5 = *(regs.uregs + 5);
 
-      if(f_output) {
-        // Note: 書き込み順序について下記の順序に従う.
-        // v1 @ [sys, ip, ret, r0, r1, r2]
-#if 0
-        write(arg->output_fd, (const void *)&sys,  sizeof(sys));
-        write(arg->output_fd, (const void *)&ip,   sizeof(ip));
-        write(arg->output_fd, (const void *)&ret,  sizeof(ret));
-        write(arg->output_fd, (const void *)&r0,   sizeof(r0));
-        write(arg->output_fd, (const void *)&r1,   sizeof(r1));
-        write(arg->output_fd, (const void *)&r2,   sizeof(r2));
-        // 書き込み及び受信するデータや第三引数以降のデータを記録
-        write(arg->output_fd, (const void *)&r3,   sizeof(r3));
-        write(arg->output_fd, (const void *)&r4,   sizeof(r4));
-        write(arg->output_fd, (const void *)&r5,   sizeof(r5));
-#else
-        seekfd_write_reg(
-            args.output_fd,
-            sys, ip, ret,
-            r0, r1, r2, r3, r4, r5);
-#endif
-      }
 
-#if defined(__ENABLE_DISPLAY_ALL__)
-      // Note: ヘルスチェックに失敗する可能性があり, 再起動を検出
-      snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu, %lu, %lu, %lu)\n",
-          ret, sys, r0, r1, r2, r3, r4, r5);
-      write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
-#else
-      switch(sys) {
-        case SYS_read:
-        case SYS_readv:
-        case SYS_write:
-        case SYS_writev:
-        case SYS_send:
-        case SYS_recv:
+      // このプログラムではデータの操作を想定していないため
+      // 呼び出し完了時の処理に限定
+      if(ip == 1) {
+        if(f_verbose) {
+          //memset((void *)msg, '\0', sizeof(msg));
           snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu, %lu, %lu, %lu)\n",
               ret, sys, r0, r1, r2, r3, r4, r5);
+
           write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
-          break;
+        }
+
+        // Note: 書き込み順序について下記の順序に従う.
+        // v1   @ [sys, ip, ret, r0, r1, r2]
+        // v1.1 @ [sys, ip, ret, r0, r1, r2, r3, r4, r5]
+        switch(sys) {
+          case SYS_read:
+          case SYS_readv:
+          case SYS_recv:
+            break;
+
+          case SYS_write:
+          case SYS_writev:
+          case SYS_send:
+            if(f_output) {
+              seekfd_write_reg(
+                  args.output_fd,
+                  sys, ip, ret,
+                  r0, r1, r2, r3, r4, r5);
+            }
+
+            break;
+        }
       }
 #endif
-#endif
+#if 0
       if(f_verbose) {
         fprintf(stderr, "- stopped by signal %d\n", WSTOPSIG(wstatus));
       }
+#endif
     }
 
     ptrace(PTRACE_SYSCALL, args.pid, NULL, NULL);
   }
 
-  // Note: 下記の処理はメインスレッドで行う
   status = ptrace(PTRACE_DETACH, args.pid, NULL, NULL);
   if(status == -1) {
     eprintf(stderr, "ptrace(2)", "PTRACE_DETACH");

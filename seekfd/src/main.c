@@ -16,7 +16,6 @@
 #include <sys/stat.h>
 
 #include "../include/seekfd_type.h"
-#include "../include/tman.h"
 #include "../include/util.h"
 
 #include "../libtask/include/libtask.h"
@@ -63,9 +62,6 @@ static void print_help(const char *app);
 /**
  */
 static void SIGINT_handler(int sig, siginfo_t *p_info, void *ctx);
-/**
- */
-static void SIGALRM_handler(int sig, siginfo_t *p_info, void *ctx);
 
 
 /* src/dump.c */
@@ -263,9 +259,6 @@ int main(
 
   int status;
 
-  // タスク配列の初期化
-  tman_init();
-
 
   // SIGINT ハンドラ設定
   struct sigaction sa_sigint, sa_old_sigint;
@@ -282,48 +275,6 @@ int main(
     return EOF;
   }
 
-  // タイマ設定
-  struct sigaction sa_timer, sa_old_timer;
-
-  memset((void *)&sa_timer,  '\0', sizeof(struct sigaction));
-  memset((void *)&sa_old_timer,  '\0', sizeof(struct sigaction));
-
-  sigemptyset(&sa_timer.sa_mask);
-  sa_timer.sa_flags     = SA_SIGINFO | SA_RESTART;
-  sa_timer.sa_sigaction = SIGALRM_handler;
-
-  status = sigaction(SIGALRM, &sa_timer, &sa_old_timer);
-  if(status != 0) {
-    eprintf(stderr, "sigaction(2)", "SIGALRM");
-
-    return EOF;
-  }
-
-
-  timer_t timerid;
-  struct itimerspec itval;
-
-  // XXX: タスクの上限数, システムコールの呼び出し回数, タイマ呼び出し間隔などの兼ね合い
-  // 現在, 未調整のため挙動の確認と検証が必要
-  itval.it_value.tv_sec     = 1;
-  itval.it_value.tv_nsec    = 500000;
-  itval.it_interval.tv_sec  = 1;
-  itval.it_interval.tv_nsec = 500000;
-
-  status = timer_create(
-      /* clockid = */CLOCK_REALTIME,
-      /* sevp    = */NULL,
-      /* timerid = */&timerid);
-  if(status != 0) {
-    eprintf(stderr, "timer_create(2)", NULL);
-  }
-
-  timer_settime(
-      /* timerid   = */timerid,
-      /* flags     = */0,
-      /* new_value = */&itval,
-      /* old_value = */NULL);
-
 
   struct seekfd_arg_t sfd_args;
   memset((void *)&sfd_args, '\0', sizeof(struct seekfd_arg_t));
@@ -338,9 +289,6 @@ int main(
     close(sfd_args.output_fd);
   }
 
-  timer_delete(/* timerid = */timerid);
-  sigaction(SIGALRM, &sa_old_timer, NULL);
-  sigaction(SIGINT, &sa_old_sigint, NULL);
 
   return 0;
 }
@@ -513,23 +461,16 @@ static void SIGINT_handler(
   extern pid_t g_target_pid;
   extern uint8_t g_f_is_continue;
 
-  fprintf(stderr, "%d, interrupt(%d)!\n",
+  fprintf(stderr, "%d: interrupt(%d)!\n",
       (int32_t)g_target_pid,
       (int32_t)sig);
 
+  ptrace(PTRACE_SYSCALL, g_target_pid, NULL, NULL);
   g_f_is_continue = 0;
+
   if(ptrace(PTRACE_DETACH, g_target_pid, NULL, NULL) != 0) {
     eprintf(stderr, "ptrace(2)", "PTRACE_DETACH");
   }
 
   exit(0);
-}
-
-
-//
-static void SIGALRM_handler(
-    int       sig,
-    siginfo_t *p_info,
-    void      *ctx) {
-  tman_gc();
 }
