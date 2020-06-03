@@ -19,6 +19,7 @@ static uint64_t conv_uint64_t(void *regs, uint16_t position, uint32_t value_size
 /**
  */
 static void _load_file_discriptor_path(FILE *fp);
+
 /**
  */
 static struct syscall_number_location_t *_find_syscall(
@@ -35,6 +36,10 @@ static char *_get_sycall_name(
     char    *buf,
     size_t  size);
 
+
+/**
+ */
+static void _display_buffer_data(FILE *fp, size_t size);
 
 void analyze_sfdump(
     const char *path,
@@ -77,6 +82,11 @@ void analyze_sfdump(
 
       // TODO: 各々のバージョンに合わせてデータを取得
     case 110:
+      reg_count = 9;
+      _load_file_discriptor_path(fp);
+      break;
+
+    case 200:
       reg_count = 9;
       _load_file_discriptor_path(fp);
       break;
@@ -148,6 +158,18 @@ void analyze_sfdump(
         ip, ret, sys,
         r0, r1, r2);
 #endif
+    if(header.version >= 200) {
+      int32_t _buffer_size = 0;
+
+      size_t _ret = fread((void *)&_buffer_size, sizeof(int32_t), 1, fp);
+      if(_ret > 0 && _buffer_size > 0) {
+#if 1
+        _display_buffer_data(fp, _buffer_size);
+#else
+        fseek(fp, _buffer_size, SEEK_CUR);
+#endif
+      }
+    }
   }
 
 
@@ -248,4 +270,50 @@ static struct syscall_number_location_t *_find_syscall(
   }
 
   return NULL;
+}
+
+
+//
+static void _display_buffer_data(FILE *fp, size_t size) {
+  uint32_t nline = 0;
+
+  size_t total_read = 0;
+  uint8_t buf[16];
+
+  for(;;) {
+    memset((void *)buf, '\0', sizeof(buf));
+
+    size_t count     = (size - total_read) > 15 ? 16 : size - total_read;
+    size_t read_size = fread((void *)buf, sizeof(uint8_t), count, fp);
+    if(read_size <= 0) {
+      break;
+    }
+    total_read += read_size;
+
+
+    fprintf(stdout, "\t0x%08X | ", nline++);
+
+    int i;
+    for(i = 0; i < read_size; ++i) {
+      fprintf(stdout, "%02x ", *(buf + i));
+    }
+    for(; i < 16; ++i) {
+      fprintf(stdout, "   ");
+    }
+    fprintf(stdout, "| ");
+
+    for(i = 0; i < read_size; ++i) {
+      char chr = *(buf + i);
+      putchar((chr >= 0x1f && chr < 0x7f) ? chr : '.');
+    }
+
+    fprintf(stdout, "\n");
+
+
+    if(total_read >= size) {
+      break;
+    }
+  }
+
+  fprintf(stdout, "\n");
 }
