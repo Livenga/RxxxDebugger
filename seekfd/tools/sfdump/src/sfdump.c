@@ -142,11 +142,14 @@ void analyze_sfdump(
              ret = conv_uint32_t(reg_values, 2, header.register_size),
              r0  = conv_uint32_t(reg_values, 3, header.register_size),
              r1  = conv_uint32_t(reg_values, 4, header.register_size),
-             r2  = conv_uint32_t(reg_values, 5, header.register_size);
+             r2  = conv_uint32_t(reg_values, 5, header.register_size),
+             r3  = conv_uint32_t(reg_values, 6, header.register_size),
+             r4  = conv_uint32_t(reg_values, 7, header.register_size),
+             r5  = conv_uint32_t(reg_values, 8, header.register_size);
 
-    fprintf(stdout, "0x%08x: 0x%08x = %s(%u, %u, %u)\n",
+    fprintf(stdout, "0x%08x: 0x%08x = %s(%u, %u, %u, %u, %u, %u)\n",
         ip, ret, syscall_name,
-        r0, r1, r2);
+        r0, r1, r2, r3, r4, r5);
 #else
     uint64_t ip  = conv_uint64_t(reg_values, 1, header.register_size),
              ret = conv_uint64_t(reg_values, 2, header.register_size),
