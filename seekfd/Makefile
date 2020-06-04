@@ -14,7 +14,7 @@ DEFINES += -D__DEBUG__
 #DEFINES += -D__ENABLE_DISPLAY_ALL__
 
 
-.PHONY: default all clean libtask
+.PHONY: default all clean
 
 
 default:
@@ -42,8 +42,3 @@ all:
 clean:
 	[ ! -f $(PRJC)   ] || rm -v $(PRJC)
 	[ ! -d $(OBJDIR) ] || rm -rv $(OBJDIR)
-
-
-libtask:
-	make -C libtask -f libtask.mk all
-	cp libtask/libtask.so . -v
