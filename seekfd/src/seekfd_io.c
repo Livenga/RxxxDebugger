@@ -18,7 +18,6 @@
 
 #include "../include/seekfd_type.h"
 #include "../include/util.h"
-#include "../libtask/include/libtask.h"
 
 
 void seekfd_write_reg(
@@ -36,6 +35,7 @@ void seekfd_write_reg(
     return;
   }
 
+#if 0
   const struct iovec iov[9] = {
     {&sys, sizeof(unsigned long int)},
     {&ip,  sizeof(unsigned long int)},
@@ -49,4 +49,8 @@ void seekfd_write_reg(
   };
 
   writev(fd, iov, 9);
+#else
+  unsigned long int buf[9] = { sys, ip, ret, r0, r1, r2, r3, r4, r5 };
+  write(fd, (const void *)buf, sizeof(unsigned long int) * 9);
+#endif
 }

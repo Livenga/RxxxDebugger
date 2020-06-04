@@ -20,11 +20,9 @@
 #include "../include/util.h"
 
 
-
+static uint8_t is_without_fd(int32_t fd);
 //#define BUFFER_LIMIT 8192
 #define BUFFER_LIMIT 65536
-
-
 
 extern void seekfd_write_reg(
     int fd,
@@ -135,72 +133,79 @@ int do_seekfd(struct seekfd_arg_t args) {
         // Note: 書き込み順序について下記の順序に従う.
         // v1   @ [sys, ip, ret, r0, r1, r2]
         // v1.1 @ [sys, ip, ret, r0, r1, r2, r3, r4, r5]
-        switch(sys) {
-          case SYS_read:
-          case SYS_readv:
-          case SYS_preadv:
-          case SYS_recv:
-          case SYS_writev:
-          case SYS_pwritev:
-          case SYS_send:
-#if 1
-            if(f_output && args.target_fd == r0) {
-              seekfd_write_reg(
+        // v2.0 @ [sys, ip, ret, r0, r1, r2, r3, r4, r5] [ buffer_size(int32_t) buffer ]
+        if(sys == SYS_read
+            || sys == SYS_readv
+            || sys == SYS_recv
+            || sys == SYS_write
+            || sys == SYS_writev
+            || sys == SYS_send) {
+          if(is_without_fd(r0)) {
+            goto pt_continue;
+          }
+        }
+
+        if(f_output) {
+          int32_t _ret_size = 0;
+
+          seekfd_write_reg(
+              args.output_fd,
+              sys, ip, ret,
+              r0, r1, r2, r3, r4, r5);
+
+          switch(sys) {
+            case SYS_open:
+              seekfd_write_peekdata(
                   args.output_fd,
-                  sys, ip, ret,
-                  r0, r1, r2, r3, r4, r5);
+                  args.pid,
+                  r0,
+                  256);
+              break;
 
-              if(sys == SYS_readv) {
-                seekfd_dump_readv(
-                    args.output_fd,
-                    args.pid,
-                    r1,
-                    r2);
-              } else if(sys == SYS_read) {
-                seekfd_dump_read(
-                    /* fd   = */args.output_fd,
-                    /* pid  = */args.pid,
-                    /* addr = */r1,
-                    /* size = */ret);
-              } else if(sys == SYS_write) {
-                seekfd_dump_write(
-                    /* fd   = */args.output_fd,
-                    /* pid  = */args.pid,
-                    /* addr = */r1,
-                    /* size = */ret);
-              } else if(sys == SYS_writev) {
-                seekfd_dump_writev(
-                    args.output_fd,
-                    args.pid,
-                    r1,
-                    r2);
-              } else {
-                int32_t _ret_size = 0;
-                write(args.output_fd, (const void *)&_ret_size, sizeof(int32_t));
-              }
-            }
-#else
-            seekfd_write_reg(
-                args.output_fd,
-                sys, ip, ret,
-                r0, r1, r2, r3, r4, r5);
+            case SYS_read:
+            case SYS_recv:
+            case SYS_write:
+            case SYS_send:
+              seekfd_write_peekdata(
+                  args.output_fd,
+                  args.pid,
+                  r1,
+                  ret);
+              break;
 
-            int32_t _ret_size = 0;
-            write(args.output_fd, (const void *)&_ret_size, sizeof(int32_t));
-#endif
+            case SYS_readv:
+              seekfd_dump_readv(
+                  args.output_fd,
+                  args.pid,
+                  r1,
+                  r2);
+              break;
 
-            if(f_verbose) {
-              //memset((void *)msg, '\0', sizeof(msg));
-              snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu, %lu, %lu, %lu)\n",
-                  ret, sys, r0, r1, r2, r3, r4, r5);
+            case SYS_writev:
+              seekfd_dump_writev(
+                  args.output_fd,
+                  args.pid,
+                  r1,
+                  r2);
+              break;
 
-              write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
-            }
+            default:
+              _ret_size = 0;
+              write(args.output_fd, (const void *)&_ret_size, sizeof(int32_t));
+              break;
+          }
+        }
 
-            break;
+        if(f_verbose) {
+          //memset((void *)msg, '\0', sizeof(msg));
+          snprintf(msg, 128, "%lu = %lu(%lu, %lu, %lu, %lu, %lu, %lu)\n",
+              ret, sys, r0, r1, r2, r3, r4, r5);
+
+          write(STDOUT_FILENO, (const void *)msg, sizeof(char) * strlen(msg));
         }
       }
 #endif
+
 #if 0
       if(f_verbose) {
         fprintf(stderr, "- stopped by signal %d\n", WSTOPSIG(wstatus));
@@ -208,12 +213,27 @@ int do_seekfd(struct seekfd_arg_t args) {
 #endif
     }
 
+pt_continue:
     ptrace(PTRACE_SYSCALL, args.pid, NULL, NULL);
   }
 
   status = ptrace(PTRACE_DETACH, args.pid, NULL, NULL);
   if(status == -1) {
     eprintf(stderr, "ptrace(2)", "PTRACE_DETACH");
+  }
+
+  return 0;
+}
+
+//
+static uint8_t is_without_fd(int32_t fd) {
+  extern int32_t g_without_fd[32];
+
+  int i;
+  for(i = 0; i < 32; ++i) {
+    if(*(g_without_fd + i) == fd) {
+      return 1;
+    }
   }
 
   return 0;

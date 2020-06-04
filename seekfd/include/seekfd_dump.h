@@ -3,7 +3,7 @@
 
 /**
  */
-extern size_t seekfd_dump_read(
+extern size_t seekfd_write_peekdata(
     int               fd,
     pid_t             pid,
     unsigned long int addr,
@@ -17,16 +17,6 @@ extern size_t seekfd_dump_readv(
     unsigned long int iov_addr,
     unsigned long int iovcnt);
 
-
-/**
- */
-extern size_t seekfd_dump_write(
-    int               fd,
-    pid_t             pid,
-    unsigned long int buf_addr,
-    unsigned long int count);
-
-
 /**
  */
 extern size_t seekfd_dump_writev(
@@ -34,4 +24,5 @@ extern size_t seekfd_dump_writev(
     pid_t             pid,
     unsigned long int iov_addr,
     unsigned long int iovcnt);
+
 #endif

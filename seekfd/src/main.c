@@ -18,8 +18,6 @@
 #include "../include/seekfd_type.h"
 #include "../include/util.h"
 
-#include "../libtask/include/libtask.h"
-
 
 #define SEEKFD_VERSION "1.1.0"
 #define SEEKFD_FILE_VERSION (200)
@@ -44,6 +42,14 @@ static pid_t get_pid_by_name(const char *process_name);
 static int32_t find_file_descriptor(
     const pid_t pid,
     const char *target_path);
+
+
+/**
+ */
+static int32_t add_without_fd(
+    const pid_t pid,
+    const char *path);
+
 
 /** 日時をファイル名としたパスの作成
  * @param path 格納先ポインタ. strncat を用いるため, 格納されている文字列の次にパスを追加する
@@ -87,6 +93,7 @@ uint8_t f_output      = 0;
 uint8_t g_f_is_continue = 1;
 pid_t g_target_pid = 0;
 
+int32_t g_without_fd[32];
 
 /**
  */
@@ -99,10 +106,12 @@ int main(
     {"file-descriptor",  required_argument, 0, 'f'},
     {"output-path",      optional_argument, 0, 'o'},
     {"output-directory", required_argument, 0, 'd'},
+    {"without-fd",       required_argument, 0, 'w'},
     {"verbose",          no_argument,       0, 'v'},
     {"help",             no_argument,       0, 'h'},
     {0, 0, 0, 0},
   };
+
 
 
   pid_t   target_pid = 0;
@@ -113,10 +122,11 @@ int main(
 
   memset((void *)fd_path, '\0', sizeof(fd_path));
   memset((void *)output_path, '\0', sizeof(output_path));
+  memset((void *)g_without_fd, -1, sizeof(g_without_fd));
 
   int opt;
   char *_optarg, *endptr = NULL;
-  while((opt = getopt_long(argc, argv, "p:n:f:od:vh", opts, NULL)) > 0) {
+  while((opt = getopt_long(argc, argv, "p:n:f:w:od:vh", opts, NULL)) > 0) {
     switch(opt) {
       case 'p':
         if(target_pid == 0) {
@@ -178,9 +188,21 @@ int main(
         }
         break;
 
+        // 対象外 fd の登録
+      case 'w':
+        if(target_pid <= 0) {
+          fprintf(stderr, "%s: 対象プロセス ID を先に指定してください.\n", _optarg);
+          continue;
+        }
+
+        _optarg = GET_OPTARG(argv, optarg, optind);
+        add_without_fd(target_pid, _optarg);
+        break;
+
       case 'v':
         f_verbose = 1;
         break;
+
       case 'h':
         print_help(argv[0]);
         return 0;
@@ -223,6 +245,16 @@ int main(
 
     if(f_output) {
       fprintf(stderr, "出力ファイルパス: %s\n", output_path);
+    }
+
+    int i;
+    for(i = 0; i < 32; ++i) {
+      if(*(g_without_fd + i) == -1) {
+        break;
+      }
+
+      fprintf(stderr, "- 検査対象外のファイルディスクリプタ: %d\n",
+          *(g_without_fd + i));
     }
   }
 
@@ -407,6 +439,38 @@ static int32_t find_file_descriptor(
   return target_fd;
 }
 
+//
+static int32_t add_without_fd(
+    const pid_t pid,
+    const char *path) {
+  if(pid < 0 || path == NULL) {
+    return EOF;
+  }
+
+  char *endptr = NULL;
+  int32_t nfd;
+
+  nfd = (int32_t)strtol(path, &endptr, 10);
+  // 引数 path が数値以外の場合
+  if(path == endptr) {
+    nfd = find_file_descriptor(pid, path);
+  }
+
+  if(nfd < 0) {
+    return EOF;
+  }
+
+  int32_t i;
+  for(i = 0; i < 32; ++i) {
+    if(*(g_without_fd + i) == -1) {
+
+      *(g_without_fd + i) = nfd;
+      return i;
+    }
+  }
+
+  return EOF;
+}
 
 //
 static char *generate_output_path(char *path, size_t size) {
