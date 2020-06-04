@@ -36,7 +36,7 @@ $(OBJDIR)/%.o:%.c
 
 
 all:
-	make clean libtask default
+	make clean default
 
 
 clean:
